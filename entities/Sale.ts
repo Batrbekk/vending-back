@@ -222,7 +222,7 @@ SaleSchema.statics.getDailySales = async function(days: number = 30, machineId?:
   
   // Проверим все даты в диапазоне
   const allSales = await this.find(matchConditions).select('paidAt').lean();
-  const uniqueDates = [...new Set(allSales.map(s => new Date(s.paidAt).toISOString().split('T')[0]))];
+  const uniqueDates = [...new Set(allSales.map((s: any) => new Date(s.paidAt).toISOString().split('T')[0]))];
   console.log('🔍 Unique dates found:', uniqueDates);
 
   const result = await this.aggregate([

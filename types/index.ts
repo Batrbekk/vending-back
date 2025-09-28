@@ -65,6 +65,7 @@ export interface IVendingMachine {
   locationId: Types.ObjectId;
   capacity: number;
   stock: number;
+  productStock: Record<string, number>;
   status: MachineStatus;
   assignedManagerId?: Types.ObjectId;
   lastServiceAt?: Date;

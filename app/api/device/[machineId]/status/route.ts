@@ -7,12 +7,14 @@ import mongoose from 'mongoose';
 // Получение состояния автомата от устройства
 export async function GET(
   request: NextRequest,
-  { params }: { params: { machineId: string } }
+  { params }: { params: Promise<{ machineId: string }> }
 ) {
   try {
     await dbConnect();
 
-    if (!mongoose.Types.ObjectId.isValid(params.machineId)) {
+    const { machineId } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(machineId)) {
       return createErrorResponse('Некорректный ID автомата', 400);
     }
 
@@ -29,12 +31,12 @@ export async function GET(
     }
 
     // Проверяем соответствие устройства автомату
-    if (device.machineId.toString() !== params.machineId) {
+    if (device.machineId.toString() !== machineId) {
       return createErrorResponse('API ключ не соответствует автомату', 403);
     }
 
     // Находим автомат
-    const machine = await VendingMachine.findById(params.machineId);
+    const machine = await VendingMachine.findById(machineId);
     if (!machine) {
       return createErrorResponse('Автомат не найден', 404);
     }

@@ -7,12 +7,14 @@ import mongoose from 'mongoose';
 // Heartbeat от устройства автомата
 export async function POST(
   request: NextRequest,
-  { params }: { params: { machineId: string } }
+  { params }: { params: Promise<{ machineId: string }> }
 ) {
   try {
     await dbConnect();
 
-    if (!mongoose.Types.ObjectId.isValid(params.machineId)) {
+    const { machineId } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(machineId)) {
       return createErrorResponse('Некорректный ID автомата', 400);
     }
 
@@ -29,7 +31,7 @@ export async function POST(
     }
 
     // Проверяем что устройство принадлежит указанному автомату
-    if (device.machineId.toString() !== params.machineId) {
+    if (device.machineId.toString() !== machineId) {
       return createErrorResponse('API ключ не соответствует автомату', 403);
     }
 
@@ -46,9 +48,9 @@ export async function POST(
     }
 
     // Логируем heartbeat для мониторинга
-    console.log(`Heartbeat от автомата ${device.machine?.machineId || params.machineId}:`, {
+    console.log(`Heartbeat от автомата ${device.machine?.machineId || machineId}:`, {
       deviceId: device._id,
-      machineId: params.machineId,
+      machineId: machineId,
       isOnline: device.isOnline,
       firmwareVersion: device.firmwareVersion,
       telemetryData,
@@ -56,7 +58,7 @@ export async function POST(
     });
 
     // Возвращаем статус автомата и команды если есть
-    const machine = await VendingMachine.findById(params.machineId);
+    const machine = await VendingMachine.findById(machineId);
     
     const response = {
       status: 'ok',

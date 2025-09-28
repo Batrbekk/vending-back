@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -26,7 +26,7 @@ const ManagerFormSchema = z.object({
 
 type ManagerFormData = z.infer<typeof ManagerFormSchema>;
 
-interface Manager extends Omit<IUser, 'passwordHash'> {}
+type Manager = Omit<IUser, 'passwordHash'>;
 
 interface ManagerDialogProps {
   isOpen: boolean;

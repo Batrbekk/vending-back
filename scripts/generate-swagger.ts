@@ -64,7 +64,7 @@ async function generateSwaggerSpec() {
     const spec = swaggerJSDoc(options);
     
     // Проверяем, что спецификация сгенерировалась корректно
-    if (!spec || !spec.paths) {
+    if (!spec || !(spec as any).paths) {
       throw new Error('Не удалось сгенерировать спецификацию');
     }
     
@@ -74,12 +74,12 @@ async function generateSwaggerSpec() {
     
     console.log('✅ Swagger спецификация сгенерирована успешно');
     console.log(`📁 Сохранена в: ${outputPath}`);
-    console.log(`📊 Найдено эндпоинтов: ${Object.keys(spec.paths).length}`);
-    console.log(`📋 Найдено схем: ${Object.keys(spec.components?.schemas || {}).length}`);
+    console.log(`📊 Найдено эндпоинтов: ${Object.keys((spec as any).paths).length}`);
+    console.log(`📋 Найдено схем: ${Object.keys((spec as any).components?.schemas || {}).length}`);
     
     // Выводим статистику
-    const endpoints = Object.keys(spec.paths);
-    const methods = endpoints.flatMap(path => Object.keys(spec.paths[path]));
+    const endpoints = Object.keys((spec as any).paths);
+    const methods = endpoints.flatMap(path => Object.keys((spec as any).paths[path]));
     
     console.log('\n📈 Статистика:');
     console.log(`- Всего эндпоинтов: ${endpoints.length}`);

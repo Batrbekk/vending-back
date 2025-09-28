@@ -33,7 +33,7 @@ export const CreateUserSchema = z.object({
     .max(100, 'Имя не должно превышать 100 символов')
     .trim(),
   role: z.enum(['ADMIN', 'MANAGER'], {
-    errorMap: () => ({ message: 'Роль должна быть ADMIN или MANAGER' })
+    message: 'Роль должна быть ADMIN или MANAGER'
   }).optional(),
   phone: z
     .string()
@@ -63,7 +63,7 @@ export const UpdateUserSchema = z.object({
     .trim()
     .optional(),
   role: z.enum(['ADMIN', 'MANAGER'], {
-    errorMap: () => ({ message: 'Роль должна быть ADMIN или MANAGER' })
+    message: 'Роль должна быть ADMIN или MANAGER'
   }).optional(),
   phone: z
     .string()

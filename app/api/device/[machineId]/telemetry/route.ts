@@ -9,12 +9,14 @@ import mongoose from 'mongoose';
 // Получение телеметрии от устройства автомата
 export async function POST(
   request: NextRequest,
-  { params }: { params: { machineId: string } }
+  { params }: { params: Promise<{ machineId: string }> }
 ) {
   try {
     await dbConnect();
 
-    if (!mongoose.Types.ObjectId.isValid(params.machineId)) {
+    const { machineId } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(machineId)) {
       return createErrorResponse('Некорректный ID автомата', 400);
     }
 
@@ -31,7 +33,7 @@ export async function POST(
     }
 
     // Проверяем соответствие устройства автомату
-    if (device.machineId.toString() !== params.machineId) {
+    if (device.machineId.toString() !== machineId) {
       return createErrorResponse('API ключ не соответствует автомату', 403);
     }
 
@@ -40,7 +42,7 @@ export async function POST(
     const telemetryData = TelemetrySchema.parse(body);
 
     // Находим автомат
-    const machine = await VendingMachine.findById(params.machineId);
+    const machine = await VendingMachine.findById(machineId);
     if (!machine) {
       return createErrorResponse('Автомат не найден', 404);
     }

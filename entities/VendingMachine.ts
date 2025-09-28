@@ -61,7 +61,7 @@ const VendingMachineSchema = new Schema<VendingMachineDocument>({
     min: [0, 'Остаток не может быть отрицательным']
   },
   productStock: {
-    type: Object,
+    type: Schema.Types.Mixed,
     default: {},
     validate: {
       validator: function(stock: Record<string, number>) {
@@ -161,7 +161,7 @@ VendingMachineSchema.virtual('assignedManager', {
 
 // Методы экземпляра
 VendingMachineSchema.methods.needsRefill = function(): boolean {
-  const totalStock = Object.values(this.productStock).reduce((a, b) => a + b, 0);
+  const totalStock = Object.values(this.productStock as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
   return totalStock < this.capacity * 0.5;
 };
 
@@ -170,7 +170,7 @@ VendingMachineSchema.methods.isEmpty = function(): boolean {
 };
 
 VendingMachineSchema.methods.getStockPercentage = function(): number {
-  const totalStock = Object.values(this.productStock).reduce((a, b) => a + b, 0);
+  const totalStock = Object.values(this.productStock as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
   return Math.round((totalStock / this.capacity) * 100);
 };
 
@@ -183,7 +183,7 @@ VendingMachineSchema.methods.updateStatus = function(): MachineStatus {
   if (this.status === MachineStatus.INACTIVE || this.status === MachineStatus.UNPAIRED) {
     return this.status;
   }
-  const totalStock = Object.values(this.productStock).reduce((a, b) => a + b, 0);
+  const totalStock = Object.values(this.productStock as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
   if (totalStock === 0) {
     this.status = MachineStatus.OUT_OF_STOCK;
   } else if (totalStock < this.capacity * 0.5) {
@@ -221,7 +221,7 @@ VendingMachineSchema.methods.setProductStock = function(productId: string, amoun
 };
 
 VendingMachineSchema.methods.getTotalStock = function(): number {
-  return Object.values(this.productStock).reduce((a, b) => a + b, 0);
+  return Object.values(this.productStock as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
 };
 
 VendingMachineSchema.methods.getProductStockObject = function(): Record<string, number> {
