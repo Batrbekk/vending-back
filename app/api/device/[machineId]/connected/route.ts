@@ -66,10 +66,6 @@ export async function POST(
       newStatus: machine.status
     });
 
-    // Обновляем lastSeen устройства
-    device.lastSeen = new Date();
-    await device.save();
-
     return createSuccessResponse({
       message: 'Устройство успешно подключено',
       machine: {
@@ -79,7 +75,6 @@ export async function POST(
       },
       device: {
         _id: device._id,
-        lastSeen: device.lastSeen,
       }
     });
   } catch (error) {
