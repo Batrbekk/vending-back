@@ -34,7 +34,8 @@ export async function GET(request: NextRequest) {
         _id: p._id.toString(),
         name: p.name,
         image: p.image,
-        price: (p as { price?: number }).price ?? 500
+        price: (p as { price?: number }).price ?? 500,
+        quantity: 16 // Default quantity for general endpoint
       })),
       pagination: {
         page,
