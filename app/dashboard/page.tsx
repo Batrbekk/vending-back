@@ -7,9 +7,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import Link from 'next/link'
-import { CheckCircle2, AlertTriangle, XCircle, Wrench, CreditCard, ShoppingCart, Receipt, ArrowRight } from 'lucide-react'
+import { CheckCircle2, AlertTriangle, XCircle, Wrench, CreditCard, ShoppingCart, Receipt, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
 import { useMachinesStore } from '@/hooks/useMachinesStore'
-import { useSalesStore } from '@/hooks/useSalesStore'
+import { useTransactionsStore } from '@/hooks/useTransactionsStore'
 import { useProductsStore } from '@/hooks/useProductsStore'
 import { useShallow } from 'zustand/react/shallow'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -25,14 +25,15 @@ export default function DashboardPage() {
     useShallow((s) => ({ items: s.items, loading: s.loading, actions: s.actions }))
   )
   const {
-    items: salesItems,
-    stats: salesStats,
-    loading: salesLoading,
-    loadingStats: salesStatsLoading,
-    actions: salesActions,
-  } = useSalesStore(
+    items: transactionsItems,
+    stats: transactionsStats,
+    loading: transactionsLoading,
+    loadingStats: transactionsStatsLoading,
+    actions: transactionsActions,
+  } = useTransactionsStore(
     useShallow((s) => ({ items: s.items, stats: s.stats, loading: s.loading, loadingStats: s.loadingStats, actions: s.actions }))
   )
+  const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set())
   const { items: products, loading: productsLoading, actions: productsActions } = useProductsStore(
     useShallow((s) => ({ items: s.items, loading: s.loading, actions: s.actions }))
   )
@@ -63,16 +64,16 @@ export default function DashboardPage() {
     console.log('🗓️ Setting current month filters:', { fromISO, toISO })
     
     // Устанавливаем фильтры и затем загружаем данные
-    salesActions.setFilters({ from: fromISO, to: toISO })
-    
+    transactionsActions.setFilters({ from: fromISO, to: toISO })
+
     // Загружаем данные
     void machinesActions.fetch(1, 50)
-    void salesActions.fetch(1, 5)
+    void transactionsActions.fetch(1, 5)
     void productsActions.fetch(1, 50)
-    
+
     // Загружаем статистику после установки фильтров
     setTimeout(() => {
-      void salesActions.fetchStats()
+      void transactionsActions.fetchStats()
     }, 100)
     
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -99,9 +100,21 @@ export default function DashboardPage() {
     return counts
   }, [machines])
 
-  const totalRevenue = useMemo(() => salesStats?.totals.totalRevenue ?? 0, [salesStats])
-  const totalSales = useMemo(() => salesStats?.totals.totalSales ?? 0, [salesStats])
-  const avgOrder = useMemo(() => salesStats?.totals.avgOrderValue ?? 0, [salesStats])
+  const totalRevenue = useMemo(() => transactionsStats?.totals.totalRevenue ?? 0, [transactionsStats])
+  const totalSales = useMemo(() => transactionsStats?.totals.totalSales ?? 0, [transactionsStats])
+  const avgOrder = useMemo(() => transactionsStats?.totals.avgOrderValue ?? 0, [transactionsStats])
+
+  const toggleTransaction = (transactionId: string) => {
+    setExpandedTransactions((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(transactionId)) {
+        newSet.delete(transactionId)
+      } else {
+        newSet.add(transactionId)
+      }
+      return newSet
+    })
+  }
 
   if (!mounted) {
     return (
@@ -207,7 +220,7 @@ export default function DashboardPage() {
               <CardDescription>Коротко за период</CardDescription>
             </CardHeader>
             <CardContent>
-              {salesStatsLoading ? (
+              {transactionsStatsLoading ? (
                 <div className="grid gap-4 sm:grid-cols-3">
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
@@ -289,7 +302,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {salesLoading ? (
+                {transactionsLoading ? (
                   <div className="space-y-4">
                     {Array.from({ length: 3 }).map((_, i) => (
                       <div key={i} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-sm transition">
@@ -310,32 +323,59 @@ export default function DashboardPage() {
                       </div>
                     ))}
                   </div>
-                ) : salesItems.length === 0 ? (
+                ) : transactionsItems.length === 0 ? (
                   <div className="text-sm text-gray-600">Нет данных</div>
                 ) : (
-                  salesItems.slice(0, 5).map((sale) => (
-                    <div key={sale._id} className="flex items-center justify-between p-4 border rounded-lg hover:shadow-sm transition">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                          <span className="text-green-600 font-semibold text-sm">₸</span>
-                        </div>
-                        <div>
-                          <p className="font-medium">{sale.productName || sale.sku}</p>
-                          <p className="text-sm text-muted-foreground">Автомат #{sale.machine?.machineId || sale.machineId}</p>
-                          {sale.machine?.location?.address && (
-                            <p className="text-xs text-muted-foreground">{sale.machine.location.address}</p>
-                          )}
-                        </div>
+                  transactionsItems.slice(0, 5).map((transaction) => {
+                    const isExpanded = expandedTransactions.has(transaction._id)
+                    return (
+                      <div key={transaction._id} className="border rounded-lg overflow-hidden">
+                        <button
+                          onClick={() => toggleTransaction(transaction._id)}
+                          className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                              <span className="text-green-600 font-semibold text-xs">₸</span>
+                            </div>
+                            <div className="text-left">
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-sm">Заказ #{transaction.orderNumber}</p>
+                                <span className="text-xs text-muted-foreground">• Чек #{transaction.receiptNumber}</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">Автомат #{transaction.machine?.machineId || transaction.machineId}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="font-semibold text-sm">{transaction.totalAmount.toLocaleString('ru-RU')} ₸</p>
+                              <p className="text-xs text-muted-foreground">{new Date(transaction.paidAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+                            </div>
+                            {isExpanded ? (
+                              <ChevronUp className="h-4 w-4 text-gray-400" />
+                            ) : (
+                              <ChevronDown className="h-4 w-4 text-gray-400" />
+                            )}
+                          </div>
+                        </button>
+                        {isExpanded && (
+                          <div className="border-t bg-gray-50 p-3">
+                            <div className="space-y-2">
+                              {transaction.items.map((item, index) => (
+                                <div key={index} className="flex items-center justify-between bg-white p-2 rounded text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <span className="w-6 h-6 bg-gray-100 rounded flex items-center justify-center text-xs font-medium">{item.quantity}x</span>
+                                    <span className="font-medium">{item.name}</span>
+                                  </div>
+                                  <span className="font-semibold">{item.subtotal.toLocaleString('ru-RU')} ₸</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <p className="font-semibold">{sale.total.toLocaleString('ru-RU')} ₸</p>
-                          <p className="text-xs text-muted-foreground">{new Date(sale.paidAt).toLocaleString('ru-RU')}</p>
-                        </div>
-                        <Badge variant="default">Завершена</Badge>
-                      </div>
-                    </div>
-                  ))
+                    )
+                  })
                 )}
               </div>
             </CardContent>

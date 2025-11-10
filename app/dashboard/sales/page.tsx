@@ -4,19 +4,20 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Calendar as CalendarIcon, Download, Loader2 } from 'lucide-react'
+import { Calendar as CalendarIcon, ChevronDown, ChevronUp } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useSalesStore } from '@/hooks/useSalesStore'
+import { useTransactionsStore } from '@/hooks/useTransactionsStore'
 import { useShallow } from 'zustand/react/shallow'
 import { Calendar } from '@/components/ui/calendar'
 import type { DateRange, SelectRangeEventHandler } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart'
+import { ChartContainer } from '@/components/ui/chart'
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import type { TransactionDTO } from '@/lib/api/transactions'
 
 export default function SalesPage() {
-  const { items, pagination, stats, loading, loadingStats, error, filters, actions } = useSalesStore(
+  const { items, pagination, stats, loading, loadingStats, error, filters, actions } = useTransactionsStore(
     useShallow((s) => ({
       items: s.items,
       pagination: s.pagination,
@@ -31,7 +32,7 @@ export default function SalesPage() {
 
   const [openCalendar, setOpenCalendar] = useState(false)
   const [range, setRange] = useState<DateRange | undefined>(undefined)
-  const [exporting, setExporting] = useState(false)
+  const [expandedTransactions, setExpandedTransactions] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     // Initial load with current month filter
@@ -96,13 +97,16 @@ export default function SalesPage() {
     }
   }
 
-  const handleExport = async () => {
-    try {
-      setExporting(true)
-      await actions.export()
-    } finally {
-      setExporting(false)
-    }
+  const toggleTransaction = (transactionId: string) => {
+    setExpandedTransactions((prev) => {
+      const newSet = new Set(prev)
+      if (newSet.has(transactionId)) {
+        newSet.delete(transactionId)
+      } else {
+        newSet.add(transactionId)
+      }
+      return newSet
+    })
   }
 
   return (
@@ -135,14 +139,6 @@ export default function SalesPage() {
                 </div>
               )}
             </div>
-            <Button onClick={() => void handleExport()} disabled={exporting || loading}>
-              {exporting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Download className="mr-2 h-4 w-4" />
-              )}
-              {exporting ? 'Экспорт...' : 'Экспорт'}
-            </Button>
           </div>
         </div>
       </div>
@@ -291,59 +287,103 @@ export default function SalesPage() {
         </CardContent>
       </Card>
 
-      {/* Список продаж */}
+      {/* Список транзакций */}
       <Card>
         <CardHeader>
-          <CardTitle>Последние продажи</CardTitle>
+          <CardTitle>Последние транзакции</CardTitle>
           <CardDescription>
-            История транзакций{range?.from && range?.to ? ` за период ${format(range.from, 'dd.MM.yyyy')}–${format(range.to, 'dd.MM.yyyy')}` : ''}
+            История продаж{range?.from && range?.to ? ` за период ${format(range.from, 'dd.MM.yyyy')}–${format(range.to, 'dd.MM.yyyy')}` : ''}
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
+          <div className="space-y-3">
             {loading ? (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div className="flex items-center space-x-4">
-                      <Skeleton className="w-10 h-10 rounded-full" />
-                      <div>
-                        <Skeleton className="h-4 w-40 mb-2" />
-                        <Skeleton className="h-3 w-56" />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Skeleton className="h-4 w-20 mb-2" />
-                      <Skeleton className="h-3 w-28" />
-                    </div>
-                    <Skeleton className="h-6 w-24" />
+                  <div key={i} className="border rounded-lg p-4">
+                    <Skeleton className="h-5 w-full mb-2" />
+                    <Skeleton className="h-4 w-2/3" />
                   </div>
                 ))}
               </div>
             ) : items.length === 0 ? (
               <div className="text-sm text-gray-600">Нет данных</div>
             ) : (
-              items.map((sale) => (
-                <div key={sale._id} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                      <span className="text-green-600 font-semibold text-sm">₸</span>
-                    </div>
-                    <div>
-                      <p className="font-medium">{sale.productName || sale.sku}</p>
-                      <p className="text-sm text-gray-500">Автомат #{sale.machine?.machineId || sale.machineId}</p>
-                      {sale.machine?.location?.address && (
-                        <p className="text-xs text-gray-500">{sale.machine.location.address}</p>
-                      )}
-                    </div>
+              items.map((transaction) => {
+                const isExpanded = expandedTransactions.has(transaction._id)
+                return (
+                  <div key={transaction._id} className="border rounded-lg overflow-hidden">
+                    {/* Accordion Header */}
+                    <button
+                      onClick={() => toggleTransaction(transaction._id)}
+                      className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center space-x-4">
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                          <span className="text-green-600 font-semibold text-sm">₸</span>
+                        </div>
+                        <div className="text-left">
+                          <div className="flex items-center gap-3 mb-1">
+                            <p className="font-semibold text-gray-900">Заказ #{transaction.orderNumber}</p>
+                            <span className="text-sm text-gray-500">•</span>
+                            <p className="text-sm text-gray-600">Чек #{transaction.receiptNumber}</p>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm text-gray-500">
+                            <span>Автомат #{transaction.machine?.machineId || transaction.machineId}</span>
+                            {transaction.machine?.location?.address && (
+                              <>
+                                <span>•</span>
+                                <span className="text-xs">{transaction.machine.location.address}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="text-right">
+                          <p className="font-bold text-lg text-gray-900">{transaction.totalAmount.toLocaleString('ru-RU')} ₸</p>
+                          <p className="text-sm text-gray-500">{format(new Date(transaction.paidAt), 'dd.MM.yyyy HH:mm')}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="default">Завершена</Badge>
+                          {isExpanded ? (
+                            <ChevronUp className="h-5 w-5 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="h-5 w-5 text-gray-400" />
+                          )}
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Accordion Content */}
+                    {isExpanded && (
+                      <div className="border-t bg-gray-50 p-4">
+                        <h4 className="font-semibold text-sm text-gray-700 mb-3">Товары в заказе:</h4>
+                        <div className="space-y-2">
+                          {transaction.items.map((item, index) => (
+                            <div key={index} className="flex items-center justify-between bg-white p-3 rounded-md">
+                              <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 bg-gray-100 rounded flex items-center justify-center">
+                                  <span className="text-xs font-medium text-gray-600">{item.quantity}x</span>
+                                </div>
+                                <div>
+                                  <p className="font-medium text-sm text-gray-900">{item.name}</p>
+                                  <p className="text-xs text-gray-500">{item.price.toLocaleString('ru-RU')} ₸ за шт.</p>
+                                </div>
+                              </div>
+                              <p className="font-semibold text-gray-900">{item.subtotal.toLocaleString('ru-RU')} ₸</p>
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Итого:</span>
+                          <span className="text-lg font-bold text-gray-900">{transaction.totalAmount.toLocaleString('ru-RU')} ₸</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{sale.total.toLocaleString('ru-RU')} ₸</p>
-                    <p className="text-sm text-gray-500">{format(new Date(sale.paidAt), 'yyyy-MM-dd HH:mm')}</p>
-                  </div>
-                  <Badge variant="default">Завершена</Badge>
-                </div>
-              ))
+                )
+              })
             )}
           </div>
           {/* Пагинация */}
