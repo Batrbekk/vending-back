@@ -5,6 +5,10 @@ import { Product } from '@/entities/Product'
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🔔 [DEV MODE] /api/device/products - Request received')
+    console.log('🔔 [DEV MODE] URL:', request.url)
+    console.log('🔔 [DEV MODE] Headers:', Object.fromEntries(request.headers.entries()))
+
     await dbConnect()
 
     const { searchParams } = new URL(request.url)
@@ -25,12 +29,12 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.ceil(totalCount / limit)
 
-    return createSuccessResponse({
-      products: products.map((p) => ({ 
-        _id: p._id.toString(), 
-        name: p.name, 
-        image: p.image, 
-        price: (p as { price?: number }).price ?? 500 
+    const response = {
+      products: products.map((p) => ({
+        _id: p._id.toString(),
+        name: p.name,
+        image: p.image,
+        price: (p as { price?: number }).price ?? 500
       })),
       pagination: {
         page,
@@ -40,7 +44,11 @@ export async function GET(request: NextRequest) {
         hasNext: page < totalPages,
         hasPrev: page > 1,
       },
-    })
+    };
+
+    console.log('🔔 [DEV MODE] Response:', JSON.stringify(response, null, 2))
+
+    return createSuccessResponse(response)
   } catch (e) {
     console.error('Ошибка получения продуктов для устройства:', e)
     return createErrorResponse('Ошибка получения продуктов', 500)

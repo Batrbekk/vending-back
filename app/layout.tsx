@@ -6,8 +6,8 @@ import { Toaster } from '@/components/ui/sonner'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Система управления вендинговыми автоматами',
-  description: 'MVP для управления сетью вендинговых автоматов',
+  title: 'Cannect - Управление вендинговыми автоматами',
+  description: 'Система управления вендинговыми автоматами Cannect',
 }
 
 export default function RootLayout({
