@@ -52,12 +52,12 @@ async function handleTransactionsStats(request: AuthenticatedRequest) {
       },
     ]);
 
-    // Динамика по дням
+    // Динамика по дням (with timezone support for Asia/Almaty)
     const dailyAgg = await Transaction.aggregate([
       { $match: matchStage },
       {
         $group: {
-          _id: { $dateToString: { format: '%Y-%m-%d', date: '$paidAt' } },
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$paidAt', timezone: 'Asia/Almaty' } },
           totalSales: { $sum: 1 },
           totalRevenue: { $sum: '$totalAmount' },
           totalItems: { $sum: { $sum: '$items.quantity' } },
