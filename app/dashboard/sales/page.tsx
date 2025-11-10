@@ -12,9 +12,16 @@ import { Calendar } from '@/components/ui/calendar'
 import type { DateRange, SelectRangeEventHandler } from 'react-day-picker'
 import { format } from 'date-fns'
 import { ru } from 'date-fns/locale'
-import { ChartContainer } from '@/components/ui/chart'
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart'
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import type { TransactionDTO } from '@/lib/api/transactions'
+
+const chartConfig = {
+  totalRevenue: {
+    label: 'Выручка',
+    color: 'hsl(var(--chart-1))',
+  },
+} satisfies ChartConfig
 
 export default function SalesPage() {
   const { items, pagination, stats, loading, loadingStats, error, filters, actions } = useTransactionsStore(
@@ -215,73 +222,78 @@ export default function SalesPage() {
         </CardHeader>
         <CardContent>
           {loadingStats ? (
-            <Skeleton className="h-[200px] w-full" />
+            <Skeleton className="h-[300px] w-full" />
           ) : (
-            <ChartContainer config={{
-              revenue: { label: 'Выручка', color: '#3b82f6' }
-            }}>
-              <ResponsiveContainer width="100%" height={200}>
-                <AreaChart data={stats?.daily ?? []} margin={{ left: 0, right: 0, top: 5, bottom: 5 }}>
-                  <defs>
-                    <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                      <stop offset="50%" stopColor="#3b82f6" stopOpacity={0.4}/>
-                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" strokeOpacity={0.3} vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(value) => {
-                      const date = new Date(value);
-                      return format(date, 'dd.MM', { locale: ru });
-                    }}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: '#9ca3af' }}
-                    width={50}
-                    axisLine={false}
-                    tickLine={false}
-                    tickFormatter={(value) => {
-                      if (value >= 1000) return `${Math.round(value / 1000)}k`;
-                      return value;
-                    }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '12px',
-                      boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                      padding: '12px 16px'
-                    }}
-                    labelStyle={{
-                      color: '#111827',
-                      fontWeight: 600,
-                      marginBottom: '4px'
-                    }}
-                    labelFormatter={(value) => {
-                      const date = new Date(value);
-                      return format(date, 'dd MMMM yyyy', { locale: ru });
-                    }}
-                    formatter={(value: any) => {
-                      return [`${Number(value).toLocaleString('ru-RU')} ₸`, 'Выручка'];
-                    }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="totalRevenue"
-                    stroke="#3b82f6"
-                    strokeWidth={2.5}
-                    fill="url(#revenueGradient)"
-                    name="Выручка"
-                    animationDuration={800}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+            <ChartContainer config={chartConfig} className="h-[300px] w-full">
+              <AreaChart
+                accessibilityLayer
+                data={stats?.daily ?? []}
+                margin={{
+                  left: 12,
+                  right: 12,
+                  top: 12,
+                  bottom: 12,
+                }}
+              >
+                <CartesianGrid vertical={false} />
+                <XAxis
+                  dataKey="date"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => {
+                    const date = new Date(value)
+                    return format(date, 'dd MMM', { locale: ru })
+                  }}
+                />
+                <YAxis
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => {
+                    if (value >= 1000) return `${(value / 1000).toFixed(0)}k`
+                    return value.toString()
+                  }}
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      labelFormatter={(value) => {
+                        const date = new Date(value)
+                        return format(date, 'dd MMMM yyyy', { locale: ru })
+                      }}
+                      formatter={(value) => (
+                        <>
+                          {Number(value).toLocaleString('ru-RU')} ₸
+                        </>
+                      )}
+                    />
+                  }
+                />
+                <defs>
+                  <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                    <stop
+                      offset="5%"
+                      stopColor="var(--color-totalRevenue)"
+                      stopOpacity={0.8}
+                    />
+                    <stop
+                      offset="95%"
+                      stopColor="var(--color-totalRevenue)"
+                      stopOpacity={0.1}
+                    />
+                  </linearGradient>
+                </defs>
+                <Area
+                  dataKey="totalRevenue"
+                  type="natural"
+                  fill="url(#fillRevenue)"
+                  fillOpacity={0.4}
+                  stroke="var(--color-totalRevenue)"
+                  strokeWidth={2}
+                />
+              </AreaChart>
             </ChartContainer>
           )}
         </CardContent>
