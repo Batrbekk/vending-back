@@ -30,18 +30,15 @@ export async function GET(
       return createErrorResponse('API ключ отсутствует', 401);
     }
 
-    // Находим устройство
+    // Находим устройство для проверки авторизации
     const device = await Device.findByApiKey(apiKey);
     if (!device) {
       return createErrorResponse('Недействительный API ключ', 401);
     }
 
-    // Проверяем соответствие устройства автомату
-    if (device.machineId.toString() !== machineId) {
-      return createErrorResponse('API ключ не соответствует автомату', 403);
-    }
-
-    // Находим автомат
+    // Находим автомат по переданному machineId
+    // Не проверяем соответствие device.machineId и machineId,
+    // так как устройство может запрашивать товары для любого автомата
     const machine = await VendingMachine.findById(machineId).populate('inventory.productId');
     if (!machine) {
       return createErrorResponse('Автомат не найден', 404);
