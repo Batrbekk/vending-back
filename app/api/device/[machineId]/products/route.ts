@@ -68,7 +68,7 @@ export async function GET(
 
     // Получаем информацию о наличии и ценах из inventory автомата
     const productStock = machine.getProductStockObject();
-    const machineObj = machine.toObject();
+    const machineObj = machine.toObject() as any;
 
     const response = {
       products: products.map((p) => {
