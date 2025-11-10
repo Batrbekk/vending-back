@@ -197,6 +197,7 @@ VendingMachineSchema.methods.updateStatus = function(): MachineStatus {
 VendingMachineSchema.methods.addStock = function(productId: string, amount: number): number {
   const oldStock = this.productStock[productId] || 0;
   this.productStock[productId] = Math.min(oldStock + amount, this.capacity);
+  this.markModified('productStock'); // Помечаем как измененное для Mongoose
   this.updateStatus();
   return this.productStock[productId] - oldStock; // Фактически добавлено
 };
@@ -205,6 +206,7 @@ VendingMachineSchema.methods.reduceStock = function(productId: string, amount: n
   const currentStock = this.productStock[productId] || 0;
   if (currentStock >= amount) {
     this.productStock[productId] = currentStock - amount;
+    this.markModified('productStock'); // Помечаем как измененное для Mongoose
     this.updateStatus();
     return true;
   }
@@ -217,6 +219,7 @@ VendingMachineSchema.methods.getProductStock = function(productId: string): numb
 
 VendingMachineSchema.methods.setProductStock = function(productId: string, amount: number): void {
   this.productStock[productId] = amount;
+  this.markModified('productStock'); // Помечаем как измененное для Mongoose
   this.updateStatus();
 };
 
