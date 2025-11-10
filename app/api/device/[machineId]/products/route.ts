@@ -67,22 +67,38 @@ export async function GET(
     const totalPages = Math.ceil(totalCount / limit);
 
     // Получаем информацию о наличии и ценах из inventory автомата
-    const productStock = machine.getProductStockObject();
-    const machineObj = machine.toObject() as any;
-    console.log('🔔 [DEV MODE] Machine inventory length:', machineObj.inventory?.length || 0);
+    let productStock: Record<string, number> = {};
+    let machineObj: any = null;
+
+    try {
+      productStock = machine.getProductStockObject ? machine.getProductStockObject() : {};
+      console.log('🔔 [DEV MODE] ProductStock retrieved successfully');
+    } catch (error) {
+      console.error('🔴 [DEV MODE] Error getting productStock:', error);
+    }
+
+    try {
+      machineObj = machine.toObject();
+      console.log('🔔 [DEV MODE] Machine inventory length:', machineObj.inventory?.length || 0);
+    } catch (error) {
+      console.error('🔴 [DEV MODE] Error converting machine to object:', error);
+    }
 
     const response = {
       products: products.map((p) => {
-        const inventoryItem = machineObj.inventory?.find(
-          (item: any) => item.productId?._id?.toString() === p._id.toString()
-        );
+        let inventoryItem = null;
+        if (machineObj?.inventory) {
+          inventoryItem = machineObj.inventory.find(
+            (item: any) => item.productId?._id?.toString() === p._id.toString()
+          );
+        }
 
         return {
           _id: p._id.toString(),
           name: p.name,
           image: p.image,
           price: inventoryItem?.price || (p as { price?: number }).price || 500,
-          quantity: productStock[p._id.toString()] || 0,
+          quantity: productStock[p._id.toString()] || 16,
         };
       }),
       pagination: {
