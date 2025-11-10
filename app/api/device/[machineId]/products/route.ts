@@ -46,7 +46,6 @@ export async function GET(
     if (!machine) {
       return createErrorResponse('Автомат не найден', 404);
     }
-    console.log('🔔 [DEV MODE] Machine inventory length:', machine.inventory?.length || 0);
 
     // Получаем все продукты
     const { searchParams } = new URL(request.url);
@@ -70,6 +69,7 @@ export async function GET(
     // Получаем информацию о наличии и ценах из inventory автомата
     const productStock = machine.getProductStockObject();
     const machineObj = machine.toObject() as any;
+    console.log('🔔 [DEV MODE] Machine inventory length:', machineObj.inventory?.length || 0);
 
     const response = {
       products: products.map((p) => {
