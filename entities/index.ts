@@ -4,6 +4,7 @@ export { Location, type LocationDocument } from './Location';
 export { VendingMachine, type VendingMachineDocument } from './VendingMachine';
 export { RefillLog, type RefillLogDocument } from './RefillLog';
 export { Sale, type SaleDocument } from './Sale';
+export { Transaction, type TransactionDocument } from './Transaction';
 export { Alert, type AlertDocument } from './Alert';
 export { Device, type DeviceDocument } from './Device';
 export { Product, type ProductDocument } from './Product';
@@ -14,15 +15,16 @@ export async function initializeModels() {
   // Импортируем все модели для регистрации в mongoose
   await Promise.all([
     import('./User'),
-    import('./Location'), 
+    import('./Location'),
     import('./VendingMachine'),
     import('./RefillLog'),
     import('./Sale'),
+    import('./Transaction'),
     import('./Alert'),
     import('./Device'),
     import('./Product'),
     import('./PairingCode')
   ]);
-  
+
   console.log('✅ Все модели инициализированы');
 }
