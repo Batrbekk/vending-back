@@ -32,6 +32,7 @@ export async function GET(
 
     // Находим устройство для проверки авторизации
     const device = await Device.findByApiKey(apiKey);
+    console.log('🔔 [DEV MODE] Device found:', device ? 'Yes' : 'No');
     if (!device) {
       return createErrorResponse('Недействительный API ключ', 401);
     }
@@ -39,10 +40,13 @@ export async function GET(
     // Находим автомат по переданному machineId
     // Не проверяем соответствие device.machineId и machineId,
     // так как устройство может запрашивать товары для любого автомата
+    console.log('🔔 [DEV MODE] Looking for machine with ID:', machineId);
     const machine = await VendingMachine.findById(machineId).populate('inventory.productId');
+    console.log('🔔 [DEV MODE] Machine found:', machine ? 'Yes' : 'No');
     if (!machine) {
       return createErrorResponse('Автомат не найден', 404);
     }
+    console.log('🔔 [DEV MODE] Machine inventory length:', machine.inventory?.length || 0);
 
     // Получаем все продукты
     const { searchParams } = new URL(request.url);
@@ -95,7 +99,9 @@ export async function GET(
 
     return createSuccessResponse(response);
   } catch (error) {
-    console.error('Ошибка получения продуктов для автомата:', error);
+    console.error('🔴 [DEV MODE] Ошибка получения продуктов для автомата:', error);
+    console.error('🔴 [DEV MODE] Error stack:', error instanceof Error ? error.stack : 'No stack');
+    console.error('🔴 [DEV MODE] Error message:', error instanceof Error ? error.message : String(error));
     return createErrorResponse('Ошибка получения продуктов', 500);
   }
 }
