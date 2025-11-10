@@ -31,8 +31,15 @@ export async function GET(
     }
 
     // Находим устройство для проверки авторизации
-    const device = await Device.findByApiKey(apiKey);
-    console.log('🔔 [DEV MODE] Device found:', device ? 'Yes' : 'No');
+    let device;
+    try {
+      device = await Device.findByApiKey(apiKey);
+      console.log('🔔 [DEV MODE] Device found:', device ? 'Yes' : 'No');
+    } catch (deviceError) {
+      console.error('🔴 [DEV MODE] Error finding device:', deviceError);
+      return createErrorResponse('Ошибка поиска устройства', 500);
+    }
+
     if (!device) {
       return createErrorResponse('Недействительный API ключ', 401);
     }
@@ -41,8 +48,15 @@ export async function GET(
     // Не проверяем соответствие device.machineId и machineId,
     // так как устройство может запрашивать товары для любого автомата
     console.log('🔔 [DEV MODE] Looking for machine with ID:', machineId);
-    const machine = await VendingMachine.findById(machineId).populate('inventory.productId');
-    console.log('🔔 [DEV MODE] Machine found:', machine ? 'Yes' : 'No');
+    let machine;
+    try {
+      machine = await VendingMachine.findById(machineId);
+      console.log('🔔 [DEV MODE] Machine found:', machine ? 'Yes' : 'No');
+    } catch (machineError) {
+      console.error('🔴 [DEV MODE] Error finding machine:', machineError);
+      return createErrorResponse('Ошибка поиска автомата', 500);
+    }
+
     if (!machine) {
       return createErrorResponse('Автомат не найден', 404);
     }

@@ -98,6 +98,30 @@ export default function MachinesPage() {
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [pairModal, setPairModal] = useState<{ open: boolean; code?: string; expiresAt?: string; machineId?: string; humanId?: string }>({ open: false })
 
+  // Auto-refresh when pairing modal is open
+  useEffect(() => {
+    if (!pairModal.open || !pairModal.machineId) return
+
+    // Poll every 3 seconds while modal is open
+    const intervalId = setInterval(() => {
+      void actions.fetch()
+    }, 3000)
+
+    return () => clearInterval(intervalId)
+  }, [pairModal.open, pairModal.machineId, actions])
+
+  // Auto-close modal when machine status changes from UNPAIRED
+  useEffect(() => {
+    if (!pairModal.open || !pairModal.machineId) return
+
+    const machine = items.find((m) => String(m._id) === pairModal.machineId)
+    if (machine && machine.status !== MachineStatus.UNPAIRED) {
+      // Machine successfully paired!
+      toast.success(`Автомат #${machine.machineId} успешно подключен!`)
+      setPairModal({ open: false })
+    }
+  }, [items, pairModal.open, pairModal.machineId])
+
   const { register, handleSubmit, reset, control, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(CreateMachineSchema),
     defaultValues: { activateAfter: true },
