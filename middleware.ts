@@ -4,12 +4,13 @@ import type { NextRequest } from 'next/server'
 // Маршруты, которые не требуют авторизации
 const publicRoutes = ['/']
 const apiRoutes = [
-  '/api/auth/login', 
+  '/api/auth/login',
   '/api/auth/logout',
   '/api/device/pair/verify',  // Пейринг устройства
   '/api/products',            // Получение товаров
   '/api/device/',             // Все device API (heartbeat, sales)
-  '/api/machines/'            // Состояние автоматов
+  '/api/machines/',           // Состояние автоматов
+  '/api/admin/'               // Админ эндпоинты
 ]
 
 // Функция для проверки валидности токена
