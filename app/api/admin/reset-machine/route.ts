@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server';
 import { createSuccessResponse, createErrorResponse } from '@/lib/auth/middleware';
 import { Device, VendingMachine } from '@/entities';
+import { MachineStatus } from '@/types';
 import dbConnect from '@/lib/database/connection';
 import mongoose from 'mongoose';
 
@@ -25,7 +26,7 @@ export async function POST(request: NextRequest) {
     console.log('Current status:', machine.status);
 
     // Update machine status to UNPAIRED
-    machine.status = 'UNPAIRED';
+    machine.status = MachineStatus.UNPAIRED;
     await machine.save();
     console.log('✅ Machine status updated to UNPAIRED');
 
