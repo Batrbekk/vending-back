@@ -276,12 +276,12 @@ export default function SalesPage() {
                     <stop
                       offset="5%"
                       stopColor="var(--color-totalRevenue)"
-                      stopOpacity={0.8}
+                      stopOpacity={0.5}
                     />
                     <stop
                       offset="95%"
                       stopColor="var(--color-totalRevenue)"
-                      stopOpacity={0.1}
+                      stopOpacity={0.05}
                     />
                   </linearGradient>
                 </defs>
@@ -289,9 +289,8 @@ export default function SalesPage() {
                   dataKey="totalRevenue"
                   type="natural"
                   fill="url(#fillRevenue)"
-                  fillOpacity={0.4}
                   stroke="var(--color-totalRevenue)"
-                  strokeWidth={2}
+                  strokeWidth={2.5}
                 />
               </AreaChart>
             </ChartContainer>
