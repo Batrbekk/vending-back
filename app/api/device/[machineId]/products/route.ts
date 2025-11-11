@@ -112,7 +112,7 @@ export async function GET(
           name: p.name,
           image: p.image,
           price: inventoryItem?.price || (p as { price?: number }).price || 500,
-          quantity: productStock[p._id.toString()] || 16,
+          quantity: productStock[p._id.toString()] || 0,
         };
       }),
       pagination: {
