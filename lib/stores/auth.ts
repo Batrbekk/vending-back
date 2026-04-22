@@ -3,6 +3,23 @@ import { persist } from 'zustand/middleware'
 import { authApi } from '@/lib/api/auth'
 import Cookies from 'js-cookie'
 
+/**
+ * Проверяет JWT локально: валидность структуры и поле exp.
+ * Подпись не проверяется — это бэкенд делает; нам достаточно понять,
+ * истёк ли токен, чтобы не заруливать юзера в /dashboard с протухшим JWT.
+ */
+function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split('.')
+    if (parts.length !== 3) return true
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')))
+    if (typeof payload.exp !== 'number') return true
+    return payload.exp * 1000 <= Date.now()
+  } catch {
+    return true
+  }
+}
+
 export interface User {
   id: string
   email: string
@@ -143,28 +160,40 @@ export const useAuthStore = create<AuthStore>()(
       initializeFromCookies: () => {
         const token = Cookies.get('accessToken')
         const userData = Cookies.get('user-data')
-        
-        if (token && userData) {
-          try {
-            const user = JSON.parse(userData)
-            set({
-              user,
-              token,
-              isAuthenticated: true,
-              error: null,
-            })
-          } catch (error) {
-            console.error('Ошибка при парсинге данных пользователя:', error)
-            // Очищаем невалидные cookies
-            Cookies.remove('accessToken')
-            Cookies.remove('user-data')
-            set({
-              user: null,
-              token: null,
-              isAuthenticated: false,
-              error: null,
-            })
-          }
+
+        if (!token || !userData) {
+          // Нечего инициализировать — юзер не залогинен
+          set({ user: null, token: null, isAuthenticated: false, error: null })
+          return
+        }
+
+        // Токен протух — сразу чистим state и cookies, чтобы Dashboard layout
+        // увидел isAuthenticated=false и отправил на /
+        if (isJwtExpired(token)) {
+          Cookies.remove('accessToken')
+          Cookies.remove('user-data')
+          set({ user: null, token: null, isAuthenticated: false, error: null })
+          return
+        }
+
+        try {
+          const user = JSON.parse(userData)
+          set({
+            user,
+            token,
+            isAuthenticated: true,
+            error: null,
+          })
+        } catch (error) {
+          console.error('Ошибка при парсинге данных пользователя:', error)
+          Cookies.remove('accessToken')
+          Cookies.remove('user-data')
+          set({
+            user: null,
+            token: null,
+            isAuthenticated: false,
+            error: null,
+          })
         }
       },
 
