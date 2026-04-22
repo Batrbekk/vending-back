@@ -29,7 +29,13 @@ async function handleGetProducts(request: AuthenticatedRequest) {
     const totalPages = Math.ceil(totalCount / limit)
 
     return createSuccessResponse({
-      products: products.map((p) => ({ _id: p._id.toString(), name: p.name, image: p.image, price: (p as { price?: number }).price ?? 500 })),
+      products: products.map((p) => ({
+        _id: p._id.toString(),
+        name: p.name,
+        image: p.image,
+        price: (p as { price?: number }).price ?? 500,
+        nutrition: (p as { nutrition?: any }).nutrition ?? { calories: 0, protein: 0, fat: 0, carbs: 0 },
+      })),
       pagination: {
         page,
         limit,
@@ -49,6 +55,13 @@ async function ensureDir(dirPath: string) {
   try { await fs.mkdir(dirPath, { recursive: true }) } catch {}
 }
 
+function parseNutritionField(raw: unknown) {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return undefined
+  return Math.round(n * 10) / 10
+}
+
 async function handleCreateProduct(request: AuthenticatedRequest): Promise<NextResponse> {
   try {
     await dbConnect()
@@ -57,6 +70,7 @@ async function handleCreateProduct(request: AuthenticatedRequest): Promise<NextR
     let name: string | undefined
     let imagePath: string | undefined
     let price: number | undefined
+    const nutrition: Record<string, number> = {}
 
     if (contentType.includes('multipart/form-data')) {
       const form = await request.formData()
@@ -70,6 +84,11 @@ async function handleCreateProduct(request: AuthenticatedRequest): Promise<NextR
           return createErrorResponse('Цена должна быть положительным числом', 400)
         }
         price = Math.round(parsed)
+      }
+
+      for (const key of ['calories', 'protein', 'fat', 'carbs'] as const) {
+        const parsed = parseNutritionField(form.get(key))
+        if (parsed !== undefined) nutrition[key] = parsed
       }
 
       const image = form.get('image') as File | null
@@ -95,7 +114,12 @@ async function handleCreateProduct(request: AuthenticatedRequest): Promise<NextR
         imagePath = `/products/${filename}`
       }
     } else {
-      const body = await request.json().catch(() => ({})) as { name?: string; image?: string; price?: number }
+      const body = await request.json().catch(() => ({})) as {
+        name?: string;
+        image?: string;
+        price?: number;
+        nutrition?: { calories?: number; protein?: number; fat?: number; carbs?: number };
+      }
       if (body.name && body.name.trim()) name = body.name.trim()
       if (body.image) imagePath = body.image
       if (typeof body.price !== 'undefined') {
@@ -105,13 +129,32 @@ async function handleCreateProduct(request: AuthenticatedRequest): Promise<NextR
         }
         price = Math.round(parsed)
       }
+      if (body.nutrition) {
+        for (const key of ['calories', 'protein', 'fat', 'carbs'] as const) {
+          const parsed = parseNutritionField(body.nutrition[key])
+          if (parsed !== undefined) nutrition[key] = parsed
+        }
+      }
     }
 
     if (!name) return createErrorResponse('Название обязательно', 400)
     if (typeof price === 'undefined') price = 500
 
-    const created = await Product.create({ name, image: imagePath, price })
-    return createSuccessResponse({ product: { _id: created._id.toString(), name: created.name, image: created.image, price: created.price } }, 201)
+    const created = await Product.create({
+      name,
+      image: imagePath,
+      price,
+      nutrition: Object.keys(nutrition).length ? nutrition : undefined,
+    })
+    return createSuccessResponse({
+      product: {
+        _id: created._id.toString(),
+        name: created.name,
+        image: created.image,
+        price: created.price,
+        nutrition: created.nutrition ?? { calories: 0, protein: 0, fat: 0, carbs: 0 },
+      },
+    }, 201)
   } catch (e) {
     console.error('Ошибка создания продукта:', e)
     return createErrorResponse('Ошибка создания продукта', 500)

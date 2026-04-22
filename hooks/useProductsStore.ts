@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
-import { productsApi, type ProductDTO, type ProductsListResponse } from '@/lib/api/products'
+import { productsApi, type ProductDTO, type ProductNutrition, type ProductsListResponse } from '@/lib/api/products'
 
 export type ProductsFiltersState = {
   search?: string
@@ -17,9 +17,9 @@ export type ProductsState = {
 export type ProductsActions = {
   setFilters: (patch: Partial<ProductsFiltersState>) => void
   fetch: (page?: number, limit?: number) => Promise<void>
-  update: (id: string, data: { name?: string; price?: number; imageFile?: File | null; image?: string }) => Promise<ProductDTO>
+  update: (id: string, data: { name?: string; price?: number; imageFile?: File | null; image?: string; nutrition?: ProductNutrition }) => Promise<ProductDTO>
   remove: (id: string) => Promise<void>
-  create: (data: { name: string; price: number; imageFile?: File | null; image?: string }) => Promise<ProductDTO>
+  create: (data: { name: string; price: number; imageFile?: File | null; image?: string; nutrition?: ProductNutrition }) => Promise<ProductDTO>
 }
 
 export type ProductsStore = ProductsState & { actions: ProductsActions }

@@ -12,6 +12,13 @@ async function ensureDir(dirPath: string) {
   } catch {}
 }
 
+function parseNutritionField(raw: unknown) {
+  if (raw === undefined || raw === null || raw === '') return undefined
+  const n = Number(raw)
+  if (!Number.isFinite(n) || n < 0) return undefined
+  return Math.round(n * 10) / 10
+}
+
 async function handlePatchProduct(request: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }): Promise<NextResponse> {
   try {
     await dbConnect()
@@ -23,6 +30,7 @@ async function handlePatchProduct(request: AuthenticatedRequest, { params }: { p
     let name: string | undefined
     let imagePath: string | undefined
     let price: number | undefined
+    const nutrition: Record<string, number> = {}
 
     if (contentType.includes('multipart/form-data')) {
       const form = await request.formData()
@@ -37,6 +45,10 @@ async function handlePatchProduct(request: AuthenticatedRequest, { params }: { p
           return createErrorResponse('Цена должна быть положительным числом', 400)
         }
         price = Math.round(parsed)
+      }
+      for (const key of ['calories', 'protein', 'fat', 'carbs'] as const) {
+        const parsed = parseNutritionField(form.get(key))
+        if (parsed !== undefined) nutrition[key] = parsed
       }
       const image = form.get('image') as File | null
       if (image && typeof image === 'object') {
@@ -62,7 +74,12 @@ async function handlePatchProduct(request: AuthenticatedRequest, { params }: { p
       }
     } else {
       // JSON
-      const body = await request.json().catch(() => ({})) as { name?: string; image?: string; price?: number }
+      const body = await request.json().catch(() => ({})) as {
+        name?: string;
+        image?: string;
+        price?: number;
+        nutrition?: { calories?: number; protein?: number; fat?: number; carbs?: number };
+      }
       if (body.name && body.name.trim()) name = body.name.trim()
       if (body.image) imagePath = body.image // allow direct path assignment if needed
       if (typeof body.price !== 'undefined') {
@@ -72,12 +89,21 @@ async function handlePatchProduct(request: AuthenticatedRequest, { params }: { p
         }
         price = Math.round(parsed)
       }
+      if (body.nutrition) {
+        for (const key of ['calories', 'protein', 'fat', 'carbs'] as const) {
+          const parsed = parseNutritionField(body.nutrition[key])
+          if (parsed !== undefined) nutrition[key] = parsed
+        }
+      }
     }
 
     const update: Record<string, unknown> = {}
     if (typeof name === 'string') update.name = name
     if (typeof imagePath === 'string') update.image = imagePath
     if (typeof price === 'number') update.price = price
+    for (const key of ['calories', 'protein', 'fat', 'carbs'] as const) {
+      if (nutrition[key] !== undefined) update[`nutrition.${key}`] = nutrition[key]
+    }
 
     if (Object.keys(update).length === 0) {
       return createErrorResponse('Нет данных для обновления', 400)
@@ -86,7 +112,15 @@ async function handlePatchProduct(request: AuthenticatedRequest, { params }: { p
     const updated = await Product.findByIdAndUpdate(id, update, { new: true })
     if (!updated) return createErrorResponse('Продукт не найден', 404)
 
-    return createSuccessResponse({ product: { _id: updated._id.toString(), name: updated.name, image: updated.image, price: updated.price } })
+    return createSuccessResponse({
+      product: {
+        _id: updated._id.toString(),
+        name: updated.name,
+        image: updated.image,
+        price: updated.price,
+        nutrition: updated.nutrition ?? { calories: 0, protein: 0, fat: 0, carbs: 0 },
+      },
+    })
   } catch (e) {
     console.error('Ошибка обновления продукта:', e)
     return createErrorResponse('Ошибка обновления продукта', 500)

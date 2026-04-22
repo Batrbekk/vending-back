@@ -1,8 +1,16 @@
+export type ProductNutrition = {
+  calories: number
+  protein: number
+  fat: number
+  carbs: number
+}
+
 export type ProductDTO = {
   _id: string
   name: string
   image?: string
   price: number
+  nutrition?: ProductNutrition
 }
 
 export type ProductsListResponse = {
@@ -35,16 +43,22 @@ export class ProductsApiClient {
     return res.json() as Promise<ProductsListResponse>
   }
 
-  async create(data: { name: string; price: number; imageFile?: File | null; image?: string }): Promise<ProductCreateResponse> {
+  async create(data: { name: string; price: number; imageFile?: File | null; image?: string; nutrition?: ProductNutrition }): Promise<ProductCreateResponse> {
     let res: Response
     if (data.imageFile) {
       const form = new FormData()
       form.append('name', data.name)
       form.append('price', String(Math.round(data.price)))
       form.append('image', data.imageFile)
+      if (data.nutrition) {
+        form.append('calories', String(data.nutrition.calories))
+        form.append('protein', String(data.nutrition.protein))
+        form.append('fat', String(data.nutrition.fat))
+        form.append('carbs', String(data.nutrition.carbs))
+      }
       res = await fetch(`${this.baseUrl}/api/products`, { method: 'POST', body: form as unknown as BodyInit })
     } else {
-      res = await fetch(`${this.baseUrl}/api/products`, { method: 'POST', headers: this.headers, body: JSON.stringify({ name: data.name, image: data.image, price: Math.round(data.price) }) })
+      res = await fetch(`${this.baseUrl}/api/products`, { method: 'POST', headers: this.headers, body: JSON.stringify({ name: data.name, image: data.image, price: Math.round(data.price), nutrition: data.nutrition }) })
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string }
@@ -53,16 +67,22 @@ export class ProductsApiClient {
     return res.json() as Promise<ProductCreateResponse>
   }
 
-  async update(id: string, data: { name?: string; price?: number; imageFile?: File | null; image?: string }) {
+  async update(id: string, data: { name?: string; price?: number; imageFile?: File | null; image?: string; nutrition?: ProductNutrition }) {
     let res: Response
     if (data.imageFile) {
       const form = new FormData()
       if (data.name) form.append('name', data.name)
       if (typeof data.price === 'number') form.append('price', String(Math.round(data.price)))
       form.append('image', data.imageFile)
+      if (data.nutrition) {
+        form.append('calories', String(data.nutrition.calories))
+        form.append('protein', String(data.nutrition.protein))
+        form.append('fat', String(data.nutrition.fat))
+        form.append('carbs', String(data.nutrition.carbs))
+      }
       res = await fetch(`${this.baseUrl}/api/products/${id}`, { method: 'PATCH', body: form as unknown as BodyInit })
     } else {
-      res = await fetch(`${this.baseUrl}/api/products/${id}`, { method: 'PATCH', headers: this.headers, body: JSON.stringify({ name: data.name, image: data.image, price: typeof data.price === 'number' ? Math.round(data.price) : undefined }) })
+      res = await fetch(`${this.baseUrl}/api/products/${id}`, { method: 'PATCH', headers: this.headers, body: JSON.stringify({ name: data.name, image: data.image, price: typeof data.price === 'number' ? Math.round(data.price) : undefined, nutrition: data.nutrition }) })
     }
     if (!res.ok) {
       const err = await res.json().catch(() => ({})) as { error?: string }

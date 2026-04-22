@@ -71,6 +71,8 @@ export interface IVendingMachine {
   lastServiceAt?: Date;
   lastTelemetryAt?: Date;
   notes?: string;
+  cannectStationId?: string;
+  displayName?: string;
   createdAt: Date;
   updatedAt: Date;
 }

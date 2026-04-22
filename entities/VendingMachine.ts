@@ -91,6 +91,16 @@ const VendingMachineSchema = new Schema<VendingMachineDocument>({
   notes: {
     type: String,
     maxlength: 1000
+  },
+  cannectStationId: {
+    type: String,
+    trim: true,
+    index: true
+  },
+  displayName: {
+    type: String,
+    trim: true,
+    maxlength: 120
   }
 }, {
   timestamps: true,

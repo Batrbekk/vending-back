@@ -113,6 +113,7 @@ export async function GET(
           image: p.image,
           price: inventoryItem?.price || (p as { price?: number }).price || 500,
           quantity: productStock[p._id.toString()] || 0,
+          nutrition: (p as { nutrition?: any }).nutrition ?? { calories: 0, protein: 0, fat: 0, carbs: 0 },
         };
       }),
       pagination: {

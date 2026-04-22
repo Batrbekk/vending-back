@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import crypto from 'crypto';
 import mongoose from 'mongoose';
 import { PasswordService } from '../lib/auth/password';
 import { User, Location, VendingMachine, Device, Sale, RefillLog, Alert, UserDocument, LocationDocument, VendingMachineDocument } from '../entities';
@@ -53,6 +54,22 @@ async function seedUsers() {
       name: 'Kuandyk Batyrbek',
       role: UserRole.ADMIN,
       phone: '+77001234567',
+      isActive: true
+    },
+    {
+      email: 'manager1@gigross.kz',
+      passwordHash: manager1Password,
+      name: 'Manager One',
+      role: UserRole.MANAGER,
+      phone: '+77001234568',
+      isActive: true
+    },
+    {
+      email: 'manager2@gigross.kz',
+      passwordHash: manager2Password,
+      name: 'Manager Two',
+      role: UserRole.MANAGER,
+      phone: '+77001234569',
       isActive: true
     }
   ];
@@ -148,6 +165,7 @@ async function seedDevices(machines: VendingMachineDocument[]) {
 
   const devices = machines.map(machine => ({
     machineId: machine._id,
+    apiKey: crypto.randomBytes(24).toString('hex'),
     firmwareVersion: `1.${Math.floor(Math.random() * 5)}.${Math.floor(Math.random() * 10)}`,
     lastHeartbeatAt: new Date(Date.now() - Math.random() * 3600000) // Последний сигнал в течение часа
   }));

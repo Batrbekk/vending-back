@@ -30,19 +30,36 @@ export default function ProductsPage() {
   const [name, setName] = useState('')
   const [price, setPrice] = useState<string>('500')
   const [file, setFile] = useState<File | null>(null)
+  const [calories, setCalories] = useState<string>('0')
+  const [protein, setProtein] = useState<string>('0')
+  const [fat, setFat] = useState<string>('0')
+  const [carbs, setCarbs] = useState<string>('0')
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [newName, setNewName] = useState('')
   const [newPrice, setNewPrice] = useState<string>('500')
   const [newFile, setNewFile] = useState<File | null>(null)
+  const [newCalories, setNewCalories] = useState<string>('0')
+  const [newProtein, setNewProtein] = useState<string>('0')
+  const [newFat, setNewFat] = useState<string>('0')
+  const [newCarbs, setNewCarbs] = useState<string>('0')
 
   useEffect(() => { void actions.fetch() }, [filters.search, actions])
 
-  const openEdit = (id: string, currentName: string, currentPrice?: number) => {
+  const openEdit = (
+    id: string,
+    currentName: string,
+    currentPrice?: number,
+    nutrition?: { calories?: number; protein?: number; fat?: number; carbs?: number },
+  ) => {
     setEditingId(id)
     setName(currentName)
     setPrice(typeof currentPrice === 'number' ? String(currentPrice) : '')
     setFile(null)
+    setCalories(String(nutrition?.calories ?? 0))
+    setProtein(String(nutrition?.protein ?? 0))
+    setFat(String(nutrition?.fat ?? 0))
+    setCarbs(String(nutrition?.carbs ?? 0))
     setIsEditOpen(true)
   }
   const closeEdit = () => { setIsEditOpen(false); setEditingId(null); setFile(null) }
@@ -68,7 +85,18 @@ export default function ProductsPage() {
         toast.error('Цена должна быть положительным числом')
         return
       }
-      await actions.update(editingId, { name, price: Math.round(parsedPrice), imageFile: file ?? undefined })
+      const nutrition = {
+        calories: Number(calories) || 0,
+        protein: Number(protein) || 0,
+        fat: Number(fat) || 0,
+        carbs: Number(carbs) || 0,
+      }
+      await actions.update(editingId, {
+        name,
+        price: Math.round(parsedPrice),
+        imageFile: file ?? undefined,
+        nutrition,
+      })
       toast.success('Продукт обновлён')
       closeEdit()
     } catch (e) {
@@ -109,12 +137,27 @@ export default function ProductsPage() {
         toast.error('Цена должна быть положительным числом')
         return
       }
-      await actions.create({ name: newName.trim(), price: Math.round(parsedNewPrice), imageFile: newFile ?? undefined })
+      const nutrition = {
+        calories: Number(newCalories) || 0,
+        protein: Number(newProtein) || 0,
+        fat: Number(newFat) || 0,
+        carbs: Number(newCarbs) || 0,
+      }
+      await actions.create({
+        name: newName.trim(),
+        price: Math.round(parsedNewPrice),
+        imageFile: newFile ?? undefined,
+        nutrition,
+      })
       toast.success('Продукт создан')
       setIsCreateOpen(false)
       setNewName('')
       setNewPrice('500')
       setNewFile(null)
+      setNewCalories('0')
+      setNewProtein('0')
+      setNewFat('0')
+      setNewCarbs('0')
       void actions.fetch()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Ошибка создания продукта')
@@ -146,6 +189,27 @@ export default function ProductsPage() {
               <div>
                 <label className="block text-sm font-medium mb-1">Цена, ₸</label>
                 <Input type="number" min={1} step={1} value={newPrice} onChange={(e) => setNewPrice(e.target.value)} placeholder="Введите цену" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Пищевая ценность (на порцию)</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Энергия, ккал</label>
+                    <Input type="number" min={0} step="0.1" value={newCalories} onChange={(e) => setNewCalories(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Белки, г</label>
+                    <Input type="number" min={0} step="0.1" value={newProtein} onChange={(e) => setNewProtein(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Жиры, г</label>
+                    <Input type="number" min={0} step="0.1" value={newFat} onChange={(e) => setNewFat(e.target.value)} />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Углеводы, г</label>
+                    <Input type="number" min={0} step="0.1" value={newCarbs} onChange={(e) => setNewCarbs(e.target.value)} />
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Изображение</label>
@@ -227,8 +291,13 @@ export default function ProductsPage() {
                   )}
                 </div>
                 <div className="mt-3 text-sm">Цена: <span className="font-semibold">{p.price} ₸</span></div>
+                {p.nutrition && (p.nutrition.calories || p.nutrition.protein || p.nutrition.fat || p.nutrition.carbs) ? (
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    {p.nutrition.calories}ккал · Б{p.nutrition.protein}г · Ж{p.nutrition.fat}г · У{p.nutrition.carbs}г
+                  </div>
+                ) : null}
                 <div className="flex gap-2 mt-4">
-                  <Button variant="outline" className="flex-1" onClick={() => openEdit(p._id, p.name, p.price)}>
+                  <Button variant="outline" className="flex-1" onClick={() => openEdit(p._id, p.name, p.price, p.nutrition)}>
                     <Edit className="h-4 w-4 mr-2" /> Редактировать
                   </Button>
                   <AlertDialog>
@@ -282,6 +351,27 @@ export default function ProductsPage() {
             <div>
               <label className="block text-sm font-medium mb-1">Цена, ₸</label>
               <Input type="number" min={1} step={1} value={price} onChange={(e) => setPrice(e.target.value)} placeholder="Введите цену" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-1">Пищевая ценность (на порцию)</label>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Энергия, ккал</label>
+                  <Input type="number" min={0} step="0.1" value={calories} onChange={(e) => setCalories(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Белки, г</label>
+                  <Input type="number" min={0} step="0.1" value={protein} onChange={(e) => setProtein(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Жиры, г</label>
+                  <Input type="number" min={0} step="0.1" value={fat} onChange={(e) => setFat(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Углеводы, г</label>
+                  <Input type="number" min={0} step="0.1" value={carbs} onChange={(e) => setCarbs(e.target.value)} />
+                </div>
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium mb-1">Изображение</label>
