@@ -21,6 +21,13 @@ export type Pagination = {
   hasPrev: boolean
 }
 
+// Позиция продукта в физическом слоте автомата (сетка 6×6).
+export type SlotPosition = { row: number; column: number }
+
+// Карта «слот → продукт». Ключ — "row-column" ("1-1" .. "6-6"),
+// значение — ObjectId продукта. Один продукт может встречаться много раз.
+export type SlotAssignments = Record<string, ObjectIdString>
+
 // Frontend-friendly DTO (serialized)
 export type MachineDTO = {
   _id: ObjectIdString
@@ -33,6 +40,8 @@ export type MachineDTO = {
   lastServiceAt?: string
   lastTelemetryAt?: string
   notes?: string
+  productStock?: Record<string, number>
+  slotAssignments?: SlotAssignments
   createdAt: string
   updatedAt: string
   // Enriched
@@ -88,6 +97,8 @@ export type MachineUpdatePayload = Partial<{
   status: MachineStatus
   assignedManagerId: ObjectIdString | null
   notes: string | null
+  // Полная карта слот→продукт (то, что прислали, перезаписывает старое)
+  slotAssignments: SlotAssignments
 }>
 
 export type PairingStartResponse = {

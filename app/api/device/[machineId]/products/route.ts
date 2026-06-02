@@ -82,6 +82,7 @@ export async function GET(
 
     // Получаем информацию о наличии и ценах из inventory автомата
     let productStock: Record<string, number> = {};
+    let slotAssignments: Record<string, string> = {};
     let machineObj: any = null;
 
     try {
@@ -89,6 +90,24 @@ export async function GET(
       console.log('🔔 [DEV MODE] ProductStock retrieved successfully');
     } catch (error) {
       console.error('🔴 [DEV MODE] Error getting productStock:', error);
+    }
+
+    try {
+      slotAssignments = machine.getSlotAssignments ? machine.getSlotAssignments() : {};
+    } catch (error) {
+      console.error('🔴 [DEV MODE] Error getting slotAssignments:', error);
+    }
+
+    // Реверс-индекс: { productId → отсортированный массив слотов }
+    const productSlots: Record<string, { row: number; column: number }[]> = {};
+    for (const [key, pid] of Object.entries(slotAssignments)) {
+      const [r, c] = key.split('-').map(Number);
+      if (!Number.isInteger(r) || !Number.isInteger(c)) continue;
+      if (!productSlots[pid]) productSlots[pid] = [];
+      productSlots[pid].push({ row: r, column: c });
+    }
+    for (const arr of Object.values(productSlots)) {
+      arr.sort((a, b) => (a.row - b.row) || (a.column - b.column));
     }
 
     try {
@@ -107,13 +126,18 @@ export async function GET(
           );
         }
 
+        const idStr = p._id.toString();
         return {
-          _id: p._id.toString(),
+          _id: idStr,
           name: p.name,
           image: p.image,
           price: inventoryItem?.price || (p as { price?: number }).price || 500,
-          quantity: productStock[p._id.toString()] || 0,
+          quantity: productStock[idStr] || 0,
           nutrition: (p as { nutrition?: any }).nutrition ?? { calories: 0, protein: 0, fat: 0, carbs: 0 },
+          // Массив физических слотов с этим вкусом. Один продукт может занимать
+          // несколько слотов (по 5 банок в каждом). Пустой массив = слот ещё не
+          // назначен в админке (планшет не сможет выдать этот продукт).
+          slots: productSlots[idStr] ?? [],
         };
       }),
       pagination: {

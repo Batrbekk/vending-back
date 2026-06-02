@@ -14,6 +14,12 @@ export interface VendingMachineDocument extends Omit<IVendingMachine, '_id'>, Do
   setProductStock(productId: string, amount: number): void;
   getTotalStock(): number;
   getProductStockObject(): Record<string, number>;
+  // slot-keyed map: { "row-column": productId }. Один слот — один продукт,
+  // но один продукт может занимать несколько слотов.
+  slotAssignments?: Record<string, string>;
+  setSlotAssignments(assignments: Record<string, string>): void;
+  getSlotAssignments(): Record<string, string>;
+  getProductSlots(productId: string): { row: number; column: number }[];
   location?: {
     _id: mongoose.Types.ObjectId;
     name: string;
@@ -71,6 +77,25 @@ const VendingMachineSchema = new Schema<VendingMachineDocument>({
         return true;
       },
       message: 'Остатки продуктов не могут быть отрицательными'
+    }
+  },
+  // Слот-keyed карта: { "row-column": productId }. Сетка 6×6 = 36 слотов,
+  // в каждом помещается 5 банок одного вкуса. Один слот максимум один
+  // продукт, но один продукт может занимать сколько угодно слотов.
+  // Заполняется из админки и отдаётся планшету, чтобы при покупке выдача
+  // шла из правильного физического гнезда.
+  slotAssignments: {
+    type: Schema.Types.Mixed,
+    default: {},
+    validate: {
+      validator: function(assignments: Record<string, string>) {
+        for (const [key, productId] of Object.entries(assignments)) {
+          if (!/^[1-6]-[1-6]$/.test(key)) return false;
+          if (typeof productId !== 'string' || !productId) return false;
+        }
+        return true;
+      },
+      message: 'Ключи слотов должны быть формата row-column (1..6), значения — productId'
     }
   },
   status: {
@@ -239,6 +264,35 @@ VendingMachineSchema.methods.getTotalStock = function(): number {
 
 VendingMachineSchema.methods.getProductStockObject = function(): Record<string, number> {
   return this.productStock;
+};
+
+// --- Slot assignments (slot → product, один продукт может занять несколько слотов) ---
+
+VendingMachineSchema.methods.setSlotAssignments = function(assignments: Record<string, string>): void {
+  this.slotAssignments = assignments ?? {};
+  this.markModified('slotAssignments');
+};
+
+VendingMachineSchema.methods.getSlotAssignments = function(): Record<string, string> {
+  return (this.slotAssignments as Record<string, string>) || {};
+};
+
+// Все слоты, в которых лежит данный продукт.
+// Возвращает позиции, отсортированные по row, потом column — детерминированный
+// порядок нужен планшету, чтобы выдавать круг за кругом по одному слоту до его
+// опустошения, потом переходить к следующему.
+VendingMachineSchema.methods.getProductSlots = function(productId: string): { row: number; column: number }[] {
+  const all = (this.slotAssignments as Record<string, string>) || {};
+  const out: { row: number; column: number }[] = [];
+  for (const [key, pid] of Object.entries(all)) {
+    if (pid !== productId) continue;
+    const [r, c] = key.split('-').map(Number);
+    if (Number.isInteger(r) && Number.isInteger(c)) {
+      out.push({ row: r, column: c });
+    }
+  }
+  out.sort((a, b) => (a.row - b.row) || (a.column - b.column));
+  return out;
 };
 
 // Статические методы

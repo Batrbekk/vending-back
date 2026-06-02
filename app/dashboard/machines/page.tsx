@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Plus, Search, Power, PowerOff, Trash2, Link2 } from 'lucide-react'
+import { Plus, Search, Power, PowerOff, Trash2, Link2, Grid3X3 } from 'lucide-react'
+import { MachineSlotsSheet } from '@/components/MachineSlotsSheet'
+import type { MachineDTO } from '@/lib/api/machines'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { useMachinesStore } from '@/hooks/useMachinesStore'
@@ -97,6 +99,9 @@ export default function MachinesPage() {
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [pairModal, setPairModal] = useState<{ open: boolean; code?: string; expiresAt?: string; machineId?: string; humanId?: string }>({ open: false })
+  // Sheet редактирования слотов: запоминаем выбранную машину, чтобы редактор
+  // знал текущий productSlots и куда сохранять PATCH.
+  const [slotsSheet, setSlotsSheet] = useState<{ open: boolean; machine: MachineDTO | null }>({ open: false, machine: null })
 
   // Auto-refresh when pairing modal is open
   useEffect(() => {
@@ -411,6 +416,14 @@ export default function MachinesPage() {
                   >
                     Заполнить до {machine.capacity}
                   </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    onClick={() => setSlotsSheet({ open: true, machine: machine as unknown as MachineDTO })}
+                  >
+                    <Grid3X3 className="h-4 w-4 mr-1" /> Слоты ({Object.keys((machine as unknown as MachineDTO).slotAssignments ?? {}).length}/36)
+                  </Button>
                   <div className="flex gap-2">
                     {machine.status === MachineStatus.INACTIVE ? (
                       <Button
@@ -507,6 +520,14 @@ export default function MachinesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Sheet редактирования слотов автомата */}
+      <MachineSlotsSheet
+        open={slotsSheet.open}
+        onOpenChange={(o) => setSlotsSheet((s) => ({ ...s, open: o }))}
+        machine={slotsSheet.machine}
+        onSaved={() => actions.fetch()}
+      />
     </div>
   )
 }

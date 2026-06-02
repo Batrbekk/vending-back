@@ -112,9 +112,19 @@ async function handleUpdateMachine(request: AuthenticatedRequest) {
       return createErrorResponse('Текущий остаток превышает новую вместимость', 400);
     }
 
-    // Обновляем поля
-    Object.assign(machine, validatedData);
-    
+    // slotAssignments обрабатываем отдельно — это Mixed-поле, нужен markModified.
+    // Zod уже проверил, что значения — валидные ObjectId, а ключи имеют формат
+    // "1-1".."6-6". Уникальность гарантируется самой структурой (один ключ-слот
+    // → одно значение-продукт), но один продукт может занять несколько слотов.
+    if (validatedData.slotAssignments !== undefined) {
+      machine.slotAssignments = validatedData.slotAssignments;
+      machine.markModified('slotAssignments');
+    }
+
+    // Остальные поля (без slotAssignments — он уже применён)
+    const { slotAssignments: _slots, ...rest } = validatedData;
+    Object.assign(machine, rest);
+
     // Пересчитываем статус
     machine.updateStatus();
 

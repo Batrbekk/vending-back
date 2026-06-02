@@ -73,6 +73,23 @@ export const CreateMachineSchema = z
     path: ['locationName']
   });
 
+// Позиция слота вендинга. Сетка 6×6 = 36 слотов (5 банок в каждом).
+export const SlotPositionSchema = z.object({
+  row: z.number().int().min(1).max(6),
+  column: z.number().int().min(1).max(6),
+});
+
+// Ключ слота "row-column" (например "1-1", "1-2" … "6-6")
+const SlotKeyRegex = /^[1-6]-[1-6]$/;
+
+// Карта «слот → продукт». Один слот всегда занят максимум одним продуктом,
+// но один продукт может занимать НЕСКОЛЬКО слотов (если на автомат загрузили
+// 10 банок Lime — это 2 слота по 5 банок). Шейп: { "1-1": productId, "1-2": productId, ... }
+export const SlotAssignmentsSchema = z.record(
+  z.string().regex(SlotKeyRegex, 'Ключ слота должен быть формата row-column (1..6)'),
+  ObjectIdSchema
+);
+
 export const UpdateMachineSchema = z.object({
   locationId: ObjectIdSchema.optional(),
   capacity: z
@@ -90,7 +107,9 @@ export const UpdateMachineSchema = z.object({
     .string()
     .max(1000, 'Заметка не должна превышать 1000 символов')
     .nullable()
-    .optional()
+    .optional(),
+  // Полная карта слот→продукт. Что прислали — то и сохраняем (старая стирается).
+  slotAssignments: SlotAssignmentsSchema.optional(),
 });
 
 export const AssignManagerSchema = z.object({
