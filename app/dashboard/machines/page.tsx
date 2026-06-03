@@ -98,7 +98,18 @@ export default function MachinesPage() {
   )
 
   const [isCreateOpen, setIsCreateOpen] = useState(false)
-  const [pairModal, setPairModal] = useState<{ open: boolean; code?: string; expiresAt?: string; machineId?: string; humanId?: string }>({ open: false })
+  // initialStatus — статус автомата в момент открытия модалки. Нужен чтобы
+  // авто-закрытие модалки срабатывало ТОЛЬКО при переходе из UNPAIRED→WORKING
+  // (первый пэйринг). При re-pair автомат изначально WORKING, и текущий
+  // pair/verify не меняет его статус → модалку закрывает оператор сам.
+  const [pairModal, setPairModal] = useState<{
+    open: boolean
+    code?: string
+    expiresAt?: string
+    machineId?: string
+    humanId?: string
+    initialStatus?: MachineStatus
+  }>({ open: false })
   // Sheet редактирования слотов: запоминаем выбранную машину, чтобы редактор
   // знал текущий productSlots и куда сохранять PATCH.
   const [slotsSheet, setSlotsSheet] = useState<{ open: boolean; machine: MachineDTO | null }>({ open: false, machine: null })
@@ -115,17 +126,20 @@ export default function MachinesPage() {
     return () => clearInterval(intervalId)
   }, [pairModal.open, pairModal.machineId, actions])
 
-  // Auto-close modal when machine status changes from UNPAIRED
+  // Авто-закрытие модалки ТОЛЬКО при первичном пэйринге, когда статус
+  // переходит UNPAIRED → не-UNPAIRED. При re-pair автомат уже WORKING,
+  // никакой смены статуса не будет — модалку закрывает оператор кнопкой
+  // «Закрыть» (или Esc), после того как ввёл код на планшете.
   useEffect(() => {
     if (!pairModal.open || !pairModal.machineId) return
+    if (pairModal.initialStatus !== MachineStatus.UNPAIRED) return
 
     const machine = items.find((m) => String(m._id) === pairModal.machineId)
     if (machine && machine.status !== MachineStatus.UNPAIRED) {
-      // Machine successfully paired!
       toast.success(`Автомат #${machine.machineId} успешно подключен!`)
       setPairModal({ open: false })
     }
-  }, [items, pairModal.open, pairModal.machineId])
+  }, [items, pairModal.open, pairModal.machineId, pairModal.initialStatus])
 
   const { register, handleSubmit, reset, control, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(CreateMachineSchema),
@@ -160,8 +174,16 @@ export default function MachinesPage() {
 
   const startPairing = async (id: string, humanId: string) => {
     try {
+      const currentMachine = items.find((m) => String(m._id) === id)
       const res = await machinesApi.pairingStart(id)
-      setPairModal({ open: true, code: res.data.code, expiresAt: res.data.expiresAt, machineId: id, humanId })
+      setPairModal({
+        open: true,
+        code: res.data.code,
+        expiresAt: res.data.expiresAt,
+        machineId: id,
+        humanId,
+        initialStatus: currentMachine?.status,
+      })
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Не удалось сгенерировать код')
     }
