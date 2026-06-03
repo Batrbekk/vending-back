@@ -80,23 +80,11 @@ export async function GET(
 
     const totalPages = Math.ceil(totalCount / limit);
 
-    // Получаем информацию о наличии и ценах из inventory автомата
-    let productStock: Record<string, number> = {};
-    let slotAssignments: Record<string, string> = {};
-    let machineObj: any = null;
-
-    try {
-      productStock = machine.getProductStockObject ? machine.getProductStockObject() : {};
-      console.log('🔔 [DEV MODE] ProductStock retrieved successfully');
-    } catch (error) {
-      console.error('🔴 [DEV MODE] Error getting productStock:', error);
-    }
-
-    try {
-      slotAssignments = machine.getSlotAssignments ? machine.getSlotAssignments() : {};
-    } catch (error) {
-      console.error('🔴 [DEV MODE] Error getting slotAssignments:', error);
-    }
+    // Получаем slot-карту и slot-сток. Это источник правды.
+    const slotAssignments: Record<string, string> = machine.getSlotAssignments
+      ? machine.getSlotAssignments()
+      : {};
+    const slotStock: Record<string, number> = machine.getSlotStock ? machine.getSlotStock() : {};
 
     // Реверс-индекс: { productId → отсортированный массив слотов }
     const productSlots: Record<string, { row: number; column: number }[]> = {};
@@ -110,33 +98,33 @@ export async function GET(
       arr.sort((a, b) => (a.row - b.row) || (a.column - b.column));
     }
 
-    try {
-      machineObj = machine.toObject();
-      console.log('🔔 [DEV MODE] Machine inventory length:', machineObj.inventory?.length || 0);
-    } catch (error) {
-      console.error('🔴 [DEV MODE] Error converting machine to object:', error);
+    // Сумма stock по слотам конкретного продукта = реальный остаток.
+    const productQuantity: Record<string, number> = {};
+    for (const [pid, slots] of Object.entries(productSlots)) {
+      productQuantity[pid] = slots.reduce(
+        (acc, s) => acc + (slotStock[`${s.row}-${s.column}`] ?? 0),
+        0
+      );
     }
 
-    const response = {
-      products: products.map((p) => {
-        let inventoryItem = null;
-        if (machineObj?.inventory) {
-          inventoryItem = machineObj.inventory.find(
-            (item: any) => item.productId?._id?.toString() === p._id.toString()
-          );
-        }
+    // Фильтруем: на планшете показываем ТОЛЬКО продукты, которые админ
+    // назначил хотя бы на один слот. Без слотов — продукт «не загружен в
+    // автомат», ему нечего показывать пользователю.
+    const visibleProducts = products.filter((p) => (productSlots[p._id.toString()] ?? []).length > 0);
 
+    const response = {
+      products: visibleProducts.map((p) => {
         const idStr = p._id.toString();
         return {
           _id: idStr,
           name: p.name,
           image: p.image,
-          price: inventoryItem?.price || (p as { price?: number }).price || 500,
-          quantity: productStock[idStr] || 0,
+          price: (p as { price?: number }).price ?? 500,
+          // quantity = сумма slotStock по слотам этого продукта (реальные банки)
+          quantity: productQuantity[idStr] ?? 0,
           nutrition: (p as { nutrition?: any }).nutrition ?? { calories: 0, protein: 0, fat: 0, carbs: 0 },
-          // Массив физических слотов с этим вкусом. Один продукт может занимать
-          // несколько слотов (по 5 банок в каждом). Пустой массив = слот ещё не
-          // назначен в админке (планшет не сможет выдать этот продукт).
+          // Массив физических слотов этого продукта (для совместимости со старым
+          // dispense-кодом на планшете). Сами банки backend выдаёт через purchase-endpoint.
           slots: productSlots[idStr] ?? [],
         };
       }),

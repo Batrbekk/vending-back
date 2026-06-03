@@ -114,15 +114,27 @@ async function handleUpdateMachine(request: AuthenticatedRequest) {
 
     // slotAssignments обрабатываем отдельно — это Mixed-поле, нужен markModified.
     // Zod уже проверил, что значения — валидные ObjectId, а ключи имеют формат
-    // "1-1".."6-6". Уникальность гарантируется самой структурой (один ключ-слот
-    // → одно значение-продукт), но один продукт может занять несколько слотов.
+    // "row-column" с row ∈ 1..5, col ∈ 1..6. Один продукт может занять несколько слотов.
     if (validatedData.slotAssignments !== undefined) {
       machine.slotAssignments = validatedData.slotAssignments;
       machine.markModified('slotAssignments');
     }
 
-    // Остальные поля (без slotAssignments — он уже применён)
-    const { slotAssignments: _slots, ...rest } = validatedData;
+    // Точечная правка остатков по слотам (например, ручная коррекция).
+    if (validatedData.slotStock !== undefined) {
+      const merged = { ...(machine.slotStock || {}), ...validatedData.slotStock };
+      machine.slotStock = merged;
+      machine.markModified('slotStock');
+    }
+
+    // Команда «заправить ВСЕ назначенные слоты до 5». Применяется к актуальным
+    // slotAssignments — если только что прислали новые слоты, они тоже заправятся.
+    if (validatedData.refillAll === true) {
+      machine.fillAllSlotsToMax();
+    }
+
+    // Остальные поля (без slot-полей — они уже применены)
+    const { slotAssignments: _slots, slotStock: _stock, refillAll: _refill, ...rest } = validatedData;
     Object.assign(machine, rest);
 
     // Пересчитываем статус

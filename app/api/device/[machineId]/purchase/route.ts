@@ -74,7 +74,8 @@ export async function POST(
       return createErrorResponse('Автомат в состоянии ошибки, покупка невозможна', 409);
     }
 
-    // Проверяем наличие всех продуктов и запрашиваем их данные
+    // Проверяем наличие всех продуктов. Остаток считаем через slotStock
+    // (реальные банки в физических слотах), а не deprecated productStock.
     const productDetails = await Promise.all(
       purchaseData.items.map(async (item) => {
         if (!mongoose.Types.ObjectId.isValid(item.productId)) {
@@ -92,10 +93,10 @@ export async function POST(
         }
 
         const productId = String(product._id);
-        const productStock = machine.getProductStock(productId);
+        const available = machine.getProductQuantity(productId);
 
-        if (productStock < item.quantity) {
-          throw new Error(`Недостаточно товара "${product.name || productId}". Доступно: ${productStock}`);
+        if (available < item.quantity) {
+          throw new Error(`Недостаточно товара "${product.name || productId}". Доступно: ${available}`);
         }
 
         return {
@@ -133,13 +134,23 @@ export async function POST(
 
         await transaction.save({ session });
 
-        // Создаем записи о продажах для каждого товара и уменьшаем остатки
+        // Создаём Sale-записи и одновременно резервируем физические слоты
+        // под весь заказ — backend сам решает, из каких гнёзд выдавать (по
+        // 5 банок на слот, по очереди (row, column)). Возвращает массив
+        // позиций ровно в порядке списания — планшет будет слать SHIP в этом
+        // же порядке.
         const sales = [];
         const oldTotalStock = machine.getTotalStock();
         const oldStatus = machine.status;
 
+        const dispensePlan = machine.allocateForOrder(
+          productDetails.map((p) => ({ productId: p.productId, quantity: p.quantity }))
+        );
+        if (!dispensePlan) {
+          throw new Error('Не удалось зарезервировать слоты под заказ (недостаточно банок в гнёздах)');
+        }
+
         for (const item of productDetails) {
-          // Создаем Sale запись
           const sale = new Sale({
             machineId: machine._id as mongoose.Types.ObjectId,
             sku: item.sku,
@@ -153,15 +164,10 @@ export async function POST(
 
           await sale.save({ session });
           sales.push(sale);
-
-          // Уменьшаем остаток
-          const success = machine.reduceStock(item.sku, item.quantity);
-          if (!success) {
-            throw new Error(`Не удалось списать товар: ${item.name}`);
-          }
         }
 
         machine.lastTelemetryAt = new Date();
+        machine.updateStatus();
         await machine.save({ session });
 
         // Создаем алерты при критических уровнях остатка
@@ -174,6 +180,7 @@ export async function POST(
         return {
           transaction: transaction.toObject(),
           sales,
+          dispensePlan,
           stockChange: {
             before: oldTotalStock,
             after: machine.stock
@@ -213,6 +220,9 @@ export async function POST(
           totalAmount: result.transaction.totalAmount,
           timestamp: result.transaction.paidAt
         },
+        // План физической выдачи: { productId, row, column }[] в порядке списания
+        // Планшет берёт его как очередь и шлёт SHIP в этом же порядке.
+        dispensePlan: result.dispensePlan,
         machine: {
           stock: machine.stock,
           status: machine.status,

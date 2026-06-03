@@ -413,8 +413,9 @@ export default function MachinesPage() {
                     className="w-full"
                     disabled={machine.stock >= machine.capacity || machine.status === MachineStatus.INACTIVE}
                     onClick={() => actions.activate(String(machine._id), machine.capacity)}
+                    title="Поставит счётчик 5 банок в каждый назначенный слот"
                   >
-                    Заполнить до {machine.capacity}
+                    Заполнить все слоты до 5
                   </Button>
                   <Button
                     variant="outline"
@@ -422,7 +423,7 @@ export default function MachinesPage() {
                     className="w-full"
                     onClick={() => setSlotsSheet({ open: true, machine: machine as unknown as MachineDTO })}
                   >
-                    <Grid3X3 className="h-4 w-4 mr-1" /> Слоты ({Object.keys((machine as unknown as MachineDTO).slotAssignments ?? {}).length}/36)
+                    <Grid3X3 className="h-4 w-4 mr-1" /> Слоты ({Object.keys((machine as unknown as MachineDTO).slotAssignments ?? {}).length}/30)
                   </Button>
                   <div className="flex gap-2">
                     {machine.status === MachineStatus.INACTIVE ? (

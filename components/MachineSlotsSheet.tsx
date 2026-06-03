@@ -22,7 +22,8 @@ import { machinesApi, MachineDTO, SlotAssignments } from '@/lib/api/machines'
 import { productsApi, ProductDTO } from '@/lib/api/products'
 import { X } from 'lucide-react'
 
-const ROWS = 6
+// Физическая сетка автомата: 5 рядов × 6 колонок = 30 слотов, по 5 банок в слоте.
+const ROWS = 5
 const COLS = 6
 const PER_SLOT_CAPACITY = 5
 
@@ -81,6 +82,11 @@ export function MachineSlotsSheet({ open, onOpenChange, machine, onSaved }: Mach
     setAssignments((machine.slotAssignments as SlotAssignments) ?? {})
   }, [machine])
 
+  // Текущие остатки по слотам — приходят с сервера в machine.slotStock.
+  // Нужны для рисования бейджа «3/5» в кружке. После сохранения/refill
+  // прилетит обновлённый machine.
+  const slotStock = (machine?.slotStock as Record<string, number>) ?? {}
+
   const productsById = useMemo(() => {
     const m = new Map<string, ProductDTO>()
     for (const p of products) m.set(p._id, p)
@@ -132,6 +138,26 @@ export function MachineSlotsSheet({ open, onOpenChange, machine, onSaved }: Mach
     }
   }
 
+  // Сохраняем текущие slotAssignments вместе с командой refillAll за один PATCH.
+  // Бэкенд сначала применит новые слоты, потом проставит 5 банок в каждый.
+  const handleRefillAll = async () => {
+    if (!machine) return
+    setSaving(true)
+    try {
+      const res = await machinesApi.update(machine._id, {
+        slotAssignments: assignments,
+        refillAll: true,
+      } as any)
+      toast.success('Все назначенные слоты заполнены до 5 банок')
+      onSaved?.(res.data.machine)
+      onOpenChange(false)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Не удалось заправить слоты')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   const machineLabel = machine
     ? `${machine.machineId}${machine.location ? ` · ${machine.location.name}` : ''}`
     : ''
@@ -150,9 +176,10 @@ export function MachineSlotsSheet({ open, onOpenChange, machine, onSaved }: Mach
         <DialogHeader className="px-6 pt-6 pb-3 border-b">
           <DialogTitle>Слоты автомата · {machineLabel}</DialogTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Сетка 6 × 6 = 36 слотов. В каждый слот {PER_SLOT_CAPACITY} банок одного вкуса.
-            Перетащи продукт справа на любой слот — один продукт можно положить в несколько слотов.
-            Клик по занятому слоту освобождает его.
+            Сетка 6 колонок × 5 рядов = {ROWS * COLS} слотов. В каждом — {PER_SLOT_CAPACITY} банок
+            одного вкуса. Перетащи продукт справа на любой слот; один продукт можно положить
+            в несколько слотов. Клик по занятому слоту освобождает его. Чтобы заправить —
+            нажми «Заполнить все слоты до 5» после сохранения.
           </p>
         </DialogHeader>
 
@@ -163,9 +190,20 @@ export function MachineSlotsSheet({ open, onOpenChange, machine, onSaved }: Mach
               Назначено: <b className="text-foreground">{totalAssigned}</b> / {ROWS * COLS} ·
               Вместимость: <b className="text-foreground">{totalAssigned * PER_SLOT_CAPACITY}</b> / {totalCapacity} банок
             </div>
-            <Button variant="ghost" size="sm" onClick={clearAll} disabled={totalAssigned === 0}>
-              Очистить всё
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" onClick={clearAll} disabled={totalAssigned === 0}>
+                Очистить всё
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleRefillAll}
+                disabled={saving || totalAssigned === 0}
+                title="Поставит счётчик каждого назначенного слота в 5 банок"
+              >
+                Заполнить все слоты до 5
+              </Button>
+            </div>
           </div>
 
           {loading ? (
@@ -196,6 +234,7 @@ export function MachineSlotsSheet({ open, onOpenChange, machine, onSaved }: Mach
                             row={row}
                             column={column}
                             product={product}
+                            stock={slotStock[key]}
                             onClear={() => clearSlot(key)}
                           />
                         )
@@ -253,12 +292,14 @@ function SlotCircle({
   row,
   column,
   product,
+  stock,
   onClear,
 }: {
   slotKey: string
   row: number
   column: number
   product?: ProductDTO
+  stock?: number
   onClear: () => void
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: `slot:${slotKey}` })
@@ -303,6 +344,22 @@ function SlotCircle({
       ) : (
         <span className="text-xs text-muted-foreground/60 select-none">
           {row}·{column}
+        </span>
+      )}
+      {filled && (
+        <span
+          className={[
+            'absolute -bottom-1 -right-1 min-w-[26px] h-6 rounded-full text-[11px] font-bold',
+            'flex items-center justify-center px-1 shadow-sm pointer-events-none',
+            (stock ?? 0) === 0
+              ? 'bg-rose-500 text-white'
+              : (stock ?? 0) <= 2
+                ? 'bg-amber-500 text-white'
+                : 'bg-violet-600 text-white',
+          ].join(' ')}
+          title={`Остаток в слоте: ${stock ?? 0}/5`}
+        >
+          {stock ?? 0}/5
         </span>
       )}
     </div>

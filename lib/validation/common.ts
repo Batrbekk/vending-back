@@ -73,21 +73,26 @@ export const CreateMachineSchema = z
     path: ['locationName']
   });
 
-// Позиция слота вендинга. Сетка 6×6 = 36 слотов (5 банок в каждом).
+// Позиция слота вендинга. Сетка 6 колонок × 5 рядов = 30 слотов (5 банок в каждом).
 export const SlotPositionSchema = z.object({
-  row: z.number().int().min(1).max(6),
+  row: z.number().int().min(1).max(5),
   column: z.number().int().min(1).max(6),
 });
 
-// Ключ слота "row-column" (например "1-1", "1-2" … "6-6")
-const SlotKeyRegex = /^[1-6]-[1-6]$/;
+// Ключ слота "row-column" (например "1-1", "1-2" … "5-6"). 5 рядов × 6 колонок.
+const SlotKeyRegex = /^[1-5]-[1-6]$/;
 
 // Карта «слот → продукт». Один слот всегда занят максимум одним продуктом,
-// но один продукт может занимать НЕСКОЛЬКО слотов (если на автомат загрузили
-// 10 банок Lime — это 2 слота по 5 банок). Шейп: { "1-1": productId, "1-2": productId, ... }
+// но один продукт может занимать НЕСКОЛЬКО слотов. Шейп: { "1-1": productId, ... }
 export const SlotAssignmentsSchema = z.record(
-  z.string().regex(SlotKeyRegex, 'Ключ слота должен быть формата row-column (1..6)'),
+  z.string().regex(SlotKeyRegex, 'Ключ слота должен быть формата row-column (row 1..5, col 1..6)'),
   ObjectIdSchema
+);
+
+// Карта остатка по слотам — 0..5 банок на слот. Слот считается «полным» при 5.
+export const SlotStockSchema = z.record(
+  z.string().regex(SlotKeyRegex, 'Ключ слота должен быть формата row-column (row 1..5, col 1..6)'),
+  z.number().int().min(0).max(5)
 );
 
 export const UpdateMachineSchema = z.object({
@@ -110,6 +115,11 @@ export const UpdateMachineSchema = z.object({
     .optional(),
   // Полная карта слот→продукт. Что прислали — то и сохраняем (старая стирается).
   slotAssignments: SlotAssignmentsSchema.optional(),
+  // Прямая правка остатка по слотам. Применяется поверх существующего slotStock
+  // (точечное обновление, например после ручной коррекции в админке).
+  slotStock: SlotStockSchema.optional(),
+  // Однократная команда «заправить все назначенные слоты до 5 банок».
+  refillAll: z.boolean().optional(),
 });
 
 export const AssignManagerSchema = z.object({

@@ -42,6 +42,8 @@ export type MachineDTO = {
   notes?: string
   productStock?: Record<string, number>
   slotAssignments?: SlotAssignments
+  /** Остаток в каждом физическом слоте (0..5). Source of truth для остатка. */
+  slotStock?: Record<string, number>
   createdAt: string
   updatedAt: string
   // Enriched
@@ -99,6 +101,10 @@ export type MachineUpdatePayload = Partial<{
   notes: string | null
   // Полная карта слот→продукт (то, что прислали, перезаписывает старое)
   slotAssignments: SlotAssignments
+  /** Прямая правка остатка по слотам (точечные обновления). */
+  slotStock: Record<string, number>
+  /** Команда «заправить все назначенные слоты до 5 банок». */
+  refillAll: boolean
 }>
 
 export type PairingStartResponse = {
@@ -179,9 +185,11 @@ export class MachinesApiClient {
     return res.json() as Promise<MachineGetResponse>
   }
 
-  async activateToCapacity(id: ObjectIdString, capacity: number): Promise<MachineGetResponse> {
-    // Sets stock to capacity to mark as filled and let backend update status accordingly
-    return this.update(id, { stock: capacity })
+  async activateToCapacity(id: ObjectIdString, _capacity: number): Promise<MachineGetResponse> {
+    // С переходом на slot-based стоковую модель «заполнить» означает «во ВСЕ
+    // назначенные слоты поставить по 5 банок». Параметр capacity больше не нужен
+    // — capacity вычисляется бэкендом из количества назначенных слотов × 5.
+    return this.update(id, { refillAll: true })
   }
 
   async setStatus(id: ObjectIdString, status: MachineUpdatePayload['status']): Promise<MachineGetResponse> {

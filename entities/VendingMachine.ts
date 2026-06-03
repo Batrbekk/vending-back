@@ -20,6 +20,19 @@ export interface VendingMachineDocument extends Omit<IVendingMachine, '_id'>, Do
   setSlotAssignments(assignments: Record<string, string>): void;
   getSlotAssignments(): Record<string, string>;
   getProductSlots(productId: string): { row: number; column: number }[];
+  // Остаток по физическим слотам — 0..5 банок в каждом.
+  slotStock?: Record<string, number>;
+  getSlotStock(): Record<string, number>;
+  getProductQuantity(productId: string): number;
+  fillAllSlotsToMax(): void;
+  /**
+   * Атомарно резервирует и декрементирует слоты для заказа по productId × qty.
+   * Возвращает массив физических позиций В ПОРЯДКЕ списания, ИЛИ null если
+   * остатка недостаточно. Не сохраняет — нужно вызвать .save() выше.
+   */
+  allocateForOrder(
+    plan: Array<{ productId: string; quantity: number }>
+  ): Array<{ productId: string; row: number; column: number }> | null;
   location?: {
     _id: mongoose.Types.ObjectId;
     name: string;
@@ -90,12 +103,32 @@ const VendingMachineSchema = new Schema<VendingMachineDocument>({
     validate: {
       validator: function(assignments: Record<string, string>) {
         for (const [key, productId] of Object.entries(assignments)) {
-          if (!/^[1-6]-[1-6]$/.test(key)) return false;
+          // 5 рядов × 6 колонок — физическая сетка автомата.
+          if (!/^[1-5]-[1-6]$/.test(key)) return false;
           if (typeof productId !== 'string' || !productId) return false;
         }
         return true;
       },
-      message: 'Ключи слотов должны быть формата row-column (1..6), значения — productId'
+      message: 'Ключи слотов должны быть формата row-column (row 1..5, col 1..6)'
+    }
+  },
+  // Остаток по физическим слотам: { "row-column": 0..5 }. Это ИСТОЧНИК ПРАВДЫ
+  // по остатку — сумма slotStock = machine.stock. Поле productStock оставлено
+  // как deprecated-зеркало для обратной совместимости старых отчётов, но
+  // авторитет теперь у slotStock. При выдаче декрементируем именно этот слот,
+  // когда счётчик гнезда дошёл до 0 — пружина пустая, переходим к следующему.
+  slotStock: {
+    type: Schema.Types.Mixed,
+    default: {},
+    validate: {
+      validator: function(stock: Record<string, number>) {
+        for (const [key, qty] of Object.entries(stock)) {
+          if (!/^[1-5]-[1-6]$/.test(key)) return false;
+          if (typeof qty !== 'number' || qty < 0 || qty > 5 || !Number.isInteger(qty)) return false;
+        }
+        return true;
+      },
+      message: 'slotStock: ключи row-column, значения 0..5'
     }
   },
   status: {
@@ -134,40 +167,46 @@ const VendingMachineSchema = new Schema<VendingMachineDocument>({
   toObject: { virtuals: true }
 });
 
-// Валидация productStock не должен превышать capacity
+// Согласование stock + slotStock + slotAssignments перед сохранением.
+// Источник правды — slotStock (per-slot 0..5). productStock остаётся как
+// производное зеркало (сумма slot-стоков по ключу productId) — нужно для
+// старых отчётов, читающих machine.productStock.
 VendingMachineSchema.pre('save', async function(next) {
   try {
-    // Если это новый документ и productStock пустой, автоматически заполняем его
-    if (this.isNew && (!this.productStock || Object.keys(this.productStock).length === 0)) {
-      // Получаем все доступные продукты
-      const products = await Product.find({}).select('_id').lean();
-      
-      if (products.length > 0) {
-        // Если stock указан, распределяем его между продуктами
-        const stockToDistribute = this.stock || this.capacity;
-        const stockPerProduct = Math.floor(stockToDistribute / products.length);
-        const remainder = stockToDistribute % products.length;
-        const productStock: Record<string, number> = {};
-        
-        products.forEach((product, index) => {
-          const stock = stockPerProduct + (index < remainder ? 1 : 0);
-          productStock[product._id.toString()] = stock;
-        });
-        
-        this.productStock = productStock;
-        this.stock = stockToDistribute;
-      }
+    const assignments = (this.slotAssignments as Record<string, string>) || {};
+    const slotStockObj = ((this.slotStock as Record<string, number>) || {}) as Record<string, number>;
+
+    // 1) Дропаем slotStock-ключи, для которых нет assignment — нельзя хранить
+    // остаток у слота, на который не назначен продукт.
+    for (const key of Object.keys(slotStockObj)) {
+      if (!assignments[key]) delete slotStockObj[key];
     }
-    
-    // Синхронизируем stock с productStock - stock всегда должен равняться сумме productStock
-    const totalStock = Object.values(this.productStock as Record<string, number>).reduce((a: number, b: number) => a + b, 0);
+    // 2) Для каждого назначенного слота — если в slotStock нет ключа,
+    // ставим 0 (новый слот всегда пустой; заполнить надо явно через refillAll).
+    for (const key of Object.keys(assignments)) {
+      if (typeof slotStockObj[key] !== 'number') slotStockObj[key] = 0;
+    }
+    this.slotStock = slotStockObj;
+    this.markModified('slotStock');
+
+    // 3) Производный productStock: для каждого productId сумма стока слотов,
+    // которые ему назначены. Полностью пересчитываем, не аддитивно.
+    const productStock: Record<string, number> = {};
+    for (const [key, pid] of Object.entries(assignments)) {
+      const qty = slotStockObj[key] ?? 0;
+      productStock[pid] = (productStock[pid] ?? 0) + qty;
+    }
+    this.productStock = productStock;
+    this.markModified('productStock');
+
+    // 4) machine.stock — сумма slotStock (== сумма productStock, но считаем из slot).
+    const totalStock = Object.values(slotStockObj).reduce((a, b) => a + b, 0);
     this.stock = totalStock;
-    
-    // Валидация: общий остаток не должен превышать вместимость
+
     if (this.stock > this.capacity) {
       return next(new Error('Остаток не может превышать вместимость автомата'));
     }
-    
+
     next();
   } catch (error) {
     next(error as Error);
@@ -293,6 +332,67 @@ VendingMachineSchema.methods.getProductSlots = function(productId: string): { ro
   }
   out.sort((a, b) => (a.row - b.row) || (a.column - b.column));
   return out;
+};
+
+// --- slotStock: per-slot 0..5 — источник правды по остатку ---
+
+VendingMachineSchema.methods.getSlotStock = function(): Record<string, number> {
+  return (this.slotStock as Record<string, number>) || {};
+};
+
+VendingMachineSchema.methods.getProductQuantity = function(productId: string): number {
+  const slots = (this as VendingMachineDocument).getProductSlots(productId);
+  const stock = (this.slotStock as Record<string, number>) || {};
+  let total = 0;
+  for (const s of slots) {
+    total += stock[`${s.row}-${s.column}`] ?? 0;
+  }
+  return total;
+};
+
+// Залить ВСЕ назначенные слоты до 5. Используется кнопкой «Заполнить всё» в админке.
+VendingMachineSchema.methods.fillAllSlotsToMax = function(): void {
+  const assignments = (this.slotAssignments as Record<string, string>) || {};
+  const stock = ((this.slotStock as Record<string, number>) || {}) as Record<string, number>;
+  for (const key of Object.keys(assignments)) {
+    stock[key] = 5;
+  }
+  this.slotStock = stock;
+  this.markModified('slotStock');
+};
+
+// Резервируем слоты под заказ. Жадно проходим по slot-листу продукта в порядке
+// (row, column): пока в текущем слоте есть остаток — декрементируем его. Когда
+// текущий слот опустел, переходим к следующему. Возвращаем массив физических
+// позиций (по одной на каждую банку) ровно в порядке списания.
+VendingMachineSchema.methods.allocateForOrder = function(
+  plan: Array<{ productId: string; quantity: number }>
+): Array<{ productId: string; row: number; column: number }> | null {
+  const stock = ((this.slotStock as Record<string, number>) || {}) as Record<string, number>;
+  const dispense: Array<{ productId: string; row: number; column: number }> = [];
+
+  for (const item of plan) {
+    const slots = (this as VendingMachineDocument).getProductSlots(item.productId);
+    if (slots.length === 0) return null;
+
+    let need = item.quantity;
+    for (const slot of slots) {
+      const key = `${slot.row}-${slot.column}`;
+      const have = stock[key] ?? 0;
+      const take = Math.min(have, need);
+      for (let i = 0; i < take; i++) {
+        dispense.push({ productId: item.productId, row: slot.row, column: slot.column });
+      }
+      stock[key] = have - take;
+      need -= take;
+      if (need === 0) break;
+    }
+    if (need > 0) return null; // не хватило банок суммарно по продукту
+  }
+
+  this.slotStock = stock;
+  this.markModified('slotStock');
+  return dispense;
 };
 
 // Статические методы
