@@ -397,16 +397,28 @@ export default function MachinesPage() {
                   </div>
                 </div>
                 <div className="mt-4 space-y-2">
-                  {machine.status === MachineStatus.UNPAIRED && (
-                    <Button
-                      variant="default"
-                      size="sm"
-                      className="w-full"
-                      onClick={() => startPairing(String(machine._id), machine.machineId)}
-                    >
-                      <Link2 className="h-4 w-4 mr-1" /> Сгенерировать код подключения
-                    </Button>
-                  )}
+                  {/* Pair-кнопка теперь всегда доступна:
+                      - UNPAIRED: первичное подключение, primary-стиль
+                      - WORKING/LOW_STOCK/прочие: «Перепэйрить» — генерирует
+                        новый код, после ввода apiKey текущего устройства
+                        регенерируется (старый планшет инвалидируется,
+                        новый получает свежий ключ). Удобно при замене планшета */}
+                  <Button
+                    variant={machine.status === MachineStatus.UNPAIRED ? 'default' : 'outline'}
+                    size="sm"
+                    className="w-full"
+                    onClick={() => startPairing(String(machine._id), machine.machineId)}
+                    title={
+                      machine.status === MachineStatus.UNPAIRED
+                        ? 'Первичное подключение устройства к автомату'
+                        : 'Перепэйрить: выпустит новый код. Старый планшет потеряет доступ — apiKey ротируется при вводе кода на новом устройстве'
+                    }
+                  >
+                    <Link2 className="h-4 w-4 mr-1" />{' '}
+                    {machine.status === MachineStatus.UNPAIRED
+                      ? 'Сгенерировать код подключения'
+                      : 'Перепэйрить устройство'}
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
